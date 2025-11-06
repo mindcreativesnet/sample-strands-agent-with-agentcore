@@ -42,23 +42,32 @@ run_cdk_destroy() {
     local cdk_dir=$1
     local stack_name=$2
     local description=$3
-    
+
     if [ -d "$cdk_dir" ]; then
         echo "🔥 $description using CDK destroy..."
         cd "$cdk_dir"
-        
-        # Activate virtual environment if it exists
+
+        # Activate virtual environment if it exists - try local first, then shared
+        local venv_activated=false
         if [ -d "venv" ]; then
             source venv/bin/activate
+            venv_activated=true
+            echo "  ✓ Using local virtual environment"
+        elif [ -d "../../venv" ]; then
+            source ../../venv/bin/activate
+            venv_activated=true
+            echo "  ✓ Using shared virtual environment"
+        else
+            echo "  ℹ️  No virtual environment found, using system CDK"
         fi
-        
+
         cdk destroy "$stack_name" --force
-        
+
         # Deactivate virtual environment if it was activated
-        if [ -d "venv" ]; then
+        if [ "$venv_activated" = true ]; then
             deactivate 2>/dev/null || true
         fi
-        
+
         cd - > /dev/null
     else
         echo "⚠️  CDK directory not found: $cdk_dir"

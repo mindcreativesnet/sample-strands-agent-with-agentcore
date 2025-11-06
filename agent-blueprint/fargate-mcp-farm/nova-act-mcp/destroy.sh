@@ -56,19 +56,19 @@ confirm_destruction() {
 # Setup CDK environment
 setup_cdk_environment() {
     print_status "Setting up CDK environment..."
-    
+
     cd "$SCRIPT_DIR/cdk"
-    
-    # Check if virtual environment exists
-    if [ ! -d "venv" ]; then
-        print_error "CDK virtual environment not found. Please run deploy.sh first."
-        exit 1
+
+    # Check if virtual environment exists - try local first, then shared
+    if [ -d "venv" ]; then
+        source venv/bin/activate
+        print_success "Using local CDK virtual environment"
+    elif [ -d "../../venv" ]; then
+        source ../../venv/bin/activate
+        print_success "Using shared CDK virtual environment"
+    else
+        print_warning "No virtual environment found, using system CDK"
     fi
-    
-    # Activate virtual environment
-    source venv/bin/activate
-    
-    print_success "CDK environment ready"
 }
 
 # Empty ECR repository before destruction
@@ -131,19 +131,25 @@ empty_ecr_repository() {
 # Destroy CDK stack
 destroy_cdk_stack() {
     print_status "Destroying CDK stack..."
-    
+
     cd "$SCRIPT_DIR/cdk"
-    source venv/bin/activate
-    
+
+    # Activate virtual environment - try local first, then shared
+    if [ -d "venv" ]; then
+        source venv/bin/activate
+    elif [ -d "../../venv" ]; then
+        source ../../venv/bin/activate
+    fi
+
     # Check if stack exists
     if ! aws cloudformation describe-stacks --stack-name "$STACK_NAME" --region "$REGION" &> /dev/null; then
-        print_warning "Stack $STACK_NAME does not exist in region $REGION"
+        print_warning "Stack $STACK_NAME does not exist or already deleted. Skipping."
         return 0
     fi
-    
+
     # Destroy the stack
     cdk destroy --region "$REGION" --force
-    
+
     print_success "CDK stack destroyed successfully"
 }
 

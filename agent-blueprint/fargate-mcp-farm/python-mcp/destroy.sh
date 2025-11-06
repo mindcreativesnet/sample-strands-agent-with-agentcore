@@ -46,12 +46,18 @@ destroy_stack() {
     log_warning "All resources including ECR images, logs, and ECS services will be removed"
 
     log_info "Destroying stack: ${STACK_NAME}..."
-    
+
     cd "${CDK_DIR}"
-    
-    # Activate virtual environment if it exists
+
+    # Activate virtual environment - try local first, then shared
     if [ -d "venv" ]; then
         source venv/bin/activate
+        log_info "Using local CDK virtual environment"
+    elif [ -d "../../venv" ]; then
+        source ../../venv/bin/activate
+        log_info "Using shared CDK virtual environment"
+    else
+        log_warning "No virtual environment found, using system CDK"
     fi
     
     # Destroy the stack
