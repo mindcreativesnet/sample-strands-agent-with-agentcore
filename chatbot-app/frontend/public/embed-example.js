@@ -92,7 +92,7 @@ function updateAllStatuses(status, message) {
     const statusElements = document.querySelectorAll('.status-indicator');
     statusElements.forEach(element => {
         element.className = `status-indicator status-${status}`;
-        element.innerHTML = message;
+        element.textContent = message;
     });
 }
 
