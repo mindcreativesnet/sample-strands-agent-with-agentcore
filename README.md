@@ -1,504 +1,317 @@
-# Sample Strands Agent Chatbot
+# Strands Agent Chatbot with AgentCore
 
-A comprehensive AI agent testing platform built with Strands Agents framework, designed for rapid prototyping and testing of business-specific AI tools. This platform enables plug-and-play integration of Built-in tools, Custom tools, MCP servers, and Agents with easy toggle functionality.
+AI agent platform built on **AWS Bedrock AgentCore** and **Strands Agents framework**. Deploy conversational AI with dynamic tool management, multi-layered memory, and flexible integration patterns.
 
-## Overview
+## What's New: AgentCore Integration
 
-This demo platform serves as a testing ground for AI agents tailored to specific business requirements. It provides a flexible environment where you can:
+This platform showcases AWS Bedrock AgentCore's capabilities:
 
-- **Define and integrate custom tools** based on your business needs
-- **Toggle tools on/off** with a simple UI interface
-- **Test different tool combinations** to find optimal configurations
-- **Deploy locally or to the cloud** with minimal configuration
-- **Leverage pre-built MCP servers** deployable to AWS Lambda
-
-## Key Features
-
-![Home](docs/images/home.gif)
-
-- **AI-Powered Chat**: Built on AWS Bedrock with Claude Sonnet 4
-- **Real-time Streaming**: Server-Sent Events for live responses
-- **Plug & Play Tools**: Easy integration of Built-in, Custom, MCP tools, and Agents
-- **Toggle Interface**: Visual tool management with on/off switches
-- **File Upload Support**: Text, image, PDF, and various file format processing
-- **Analysis Dashboard**: Real-time tool execution monitoring
-- **MCP Connection Status**: Real-time monitoring of MCP server connectivity
-- **Dual Deployment**: Local development and cloud deployment options
-- **Quick Setup**: One-command deployment for both environments
-- **Session Management**: Automatic session isolation with fresh start on refresh
-- **AgentCore Observability**: Full trace and log monitoring with AWS CloudWatch integration
+- **AgentCore Runtime**: Containerized Strands Agent as managed AWS service
+- **AgentCore Memory**: Persistent conversation history with DynamoDB backend
+- **AgentCore Gateway**: SigV4-authenticated Lambda tools (12 tools via 5 functions)
+- **Turn-based Session Management**: Optimized memory persistence with buffering
+- **Dynamic Tool Filtering**: Per-user tool selection with real-time updates
 
 ## Architecture
 
-The platform supports both local development and cloud deployment with a comprehensive MCP ecosystem:
-
-<img src="docs/images/architecture-overview.svg" 
-     alt="Architecture Overview" 
+<img src="docs/images/architecture-overview.svg"
+     alt="Architecture Overview"
      width="1200">
 
-### 1) Cloud Deployment
-- **Frontend & Backend**: Deployed as containerized tasks on AWS Fargate
-- **Application Load Balancer**: Traffic distribution across containers
-- **Amazon ECR**: Docker container registry
-- **AI Engine**: Amazon Bedrock for LLM capabilities with AgentCore Code Interpreter
-- **IAM Authentication**: Secure access control
-- **Serverless MCP Farm**: Lambda-based MCP servers for scalable tool execution
-- **Stateful MCP Farm**: ECS-hosted MCP servers for persistent operations
+### Core Components
 
-### 2) Local Development
-- **Local Machine**: Direct connection to Strands Agents
-- **Development Server**: Local FastAPI backend with Next.js frontend
-- **Cloud Integration**: Connects to Amazon Bedrock and both MCP farms
+1. **Frontend + BFF** (Next.js)
+   - Server-side API routes as Backend-for-Frontend
+   - Cognito authentication with JWT validation
+   - SSE streaming from AgentCore Runtime
+   - Session management and file upload handling
 
-### MCP Server Architecture
-The platform includes two types of MCP server deployments:
+2. **AgentCore Runtime**
+   - Strands Agent with Bedrock Claude models
+   - Turn-based session manager (optimized message buffering)
+   - Uses AgentCore Memory for conversation persistence
+   - Integrates with AgentCore Gateway via SigV4
+   - Calls Built-in Tools via AWS API
+   - Communicates with other Runtimes via A2A protocol
 
-#### Serverless MCP Farm (AWS Lambda)
-- **AWS Documentation**: Official AWS service documentation
-- **AWS Pricing**: Real-time pricing information
-- **Bedrock Knowledge Base**: Enterprise knowledge retrieval
-- **Tavily Web Search**: Web search capabilities
+3. **AgentCore Gateway**
+   - API Gateway with SigV4 authentication
+   - Routes requests to 5 Lambda functions (12 tools total)
+   - Lambda functions use MCP protocol
+   - Tools: Wikipedia, ArXiv, Google Search, Tavily, Finance
 
-#### Stateful MCP Farm (AWS ECS)
-- **Nova Act Browser**: Advanced browser automation with natural language control and Playwright API integration
-- **Python Runtime**: Sandboxed Python code execution using Pyodide
+4. **AgentCore Memory**
+   - DynamoDB-backed conversation persistence
+   - Automatic history management across sessions
 
-## Tool Management System
+5. **Tool Ecosystem**
+   - **Local Tools**: Weather, visualization, web search, URL fetcher (embedded in Runtime)
+   - **Built-in Tools**: Bedrock Code Interpreter for diagrams/charts (AWS API)
+   - **Gateway Tools**: Research, search, and finance data (via AgentCore Gateway + MCP)
+   - **Runtime Tools** (Optional): Report Writer with A2A communication
 
-The platform supports four distinct types of tools, each with plug-and-play capabilities:
+## Key Features
 
-### Built-in Tools
-Core Strands framework tools that provide essential functionality:
-- **Calculator**: Mathematical operations and computations
-- **HTTP Request**: API calls and web data fetching
-- **Image Generator**: AI-powered image creation
-- **Image Reader**: Image analysis and description
+![Demo](docs/images/home.gif)
 
-### Custom Tools
-Business-specific tools tailored to your requirements:
-- **Diagram Creator**: Create AWS cloud architecture diagrams and UML diagrams with server-optimized rendering
-- **Weather Lookup**: Get current weather information for any city worldwide
-- **Visualization Creator**: Create interactive charts and visualizations from data
-- **Bedrock Code Interpreter**: Execute Python code using AWS Bedrock Code Interpreter with automatic file download support
+### Dynamic Tool Management
 
-### MCP Servers
-Modular Context Protocol servers providing external integrations:
+- **Per-user tool selection**: Each user can enable/disable specific tools
+- **Real-time filtering**: Tools are filtered before each agent invocation
+- **Category organization**: Local, Built-in, Gateway, Runtime
+- **Connection monitoring**: Real-time status for Gateway tools
 
-#### Serverless MCP Servers (Lambda)
-- **AWS Documentation**: Search AWS documentation using official Search API
-  
-<img src="docs/images/awsdoc.gif" alt="awsdoc" width="800">
+### Memory Layers
 
-- **AWS Pricing**: Access real-time AWS pricing information and analyze cost
-- **Bedrock Knowledge Base Retrieval**: Query Amazon Bedrock Knowledge Bases using natural language
-- **Tavily Web Search**: Perform web search using Tavily AI
-- **Financial Analysis**: Analyze stock prices and market trends using Yahoo Finance API
+**Turn-based Session Management**:
+- Buffers messages within a "turn" to reduce API calls
+- Merges consecutive user messages before persistence
+- Integrated with AgentCore Memory 
+- Conversation history retained across sessions
 
-<img src="docs/images/finance.gif" alt="Fiannce" width="800">
+**Session Isolation**:
+- User-specific sessions via Cognito user ID
+- Automatic session creation and cleanup
+- Fresh start with page refresh
 
+## Tool Categories
 
-#### Stateful MCP Servers (ECS)
-- **Nova Act Browser**: Advanced browser automation combining natural language instructions with direct Playwright API access. Supports high-level actions like "click the blue submit button" alongside precise element targeting with CSS selectors
+### Local Tools (5 tools)
+Embedded in AgentCore Runtime container:
+- **Calculator**: Mathematical computations (Strands built-in)
+- **Weather**: Current weather by city (wttr.in API)
+- **Visualization**: Chart generation (Plotly)
+- **Web Search**: DuckDuckGo search
+- **URL Fetcher**: Web content extraction
 
-<img src="docs/images/browser.gif" alt="Browser" width="800">
+### Built-in Tools (1 tool)
+AWS Bedrock-powered capabilities:
+- **Diagram Generator**: Python code + Bedrock Code Interpreter
+  - Architecture diagrams (AWS, UML)
+  - Charts and visualizations
+  - Server-side rendering with file download
 
-- **Python Runtime**: Execute Python code safely in a sandboxed environment using Pyodide
+### Gateway Tools (12 tools via 5 Lambdas)
+Accessed via AgentCore Gateway with SigV4 auth:
 
-### Agents (Sub-Agents)
-Specialized AI agents for complex workflows:
-- **Spending Analysis Tool**: Personal spending pattern analysis with demographic comparisons and behavioral insights
-- **Financial Narrative Tool**: Creative storytelling tool that transforms spending data into narratives with AI-generated images
+| Lambda Function | Tools | API Keys Required |
+|----------------|-------|-------------------|
+| **mcp-wikipedia** | search, get_article | None |
+| **mcp-arxiv** | search, get_paper | None |
+| **mcp-google-search** | web_search, image_search | Google API + Search Engine ID |
+| **mcp-tavily** | search, extract | Tavily API Key |
+| **mcp-finance** | stock_quote, stock_history, news, analysis | None (Yahoo Finance) |
 
-<img src="docs/images/sub-agent.gif" alt="SubAgent" width="800">
+<img src="docs/images/finance.gif" alt="Finance Tools Demo" width="800">
 
-### Adding MCP Servers
-
-You can easily add new MCP servers through the intuitive interface:
-
-1. **Name**: Provide a descriptive name for your MCP server
-2. **Description**: Brief description of what the server provides
-3. **Category**: Organize servers by category (general, finance, etc.)
-4. **Server URL**: The endpoint URL (should end with `/mcp` for Streamable HTTP protocol). Supports AWS Parameter Store references using `ssm://parameter-name` format
-5. **Connection Status**: Real-time monitoring shows connection status:
-   - **Connected**: Server is responding and accessible
-   - **Disconnected**: Server is unreachable or returning errors
-   - **Invalid URL**: URL format is incorrect or placeholder
-   - **Unknown**: Connection status not yet determined
-
-**📚 Detailed Guide:** See [docs/guides/Add_New_Serverless_MCP.md](docs/guides/Add_New_Serverless_MCP.md) for step-by-step instructions on creating and deploying serverless MCP servers to AWS Lambda.
-
-### Model Configuration
-
-Configure AI models, temperature, and system prompts:
-
-<img src="docs/images/model-config.png" 
-     alt="Model Configuration Interface" 
-     width="400">
-
-**Model Selection**: Choose from various AI models including Claude Sonnet 4
-**Temperature Control**: Adjust creativity vs. focus (0.0 = Focused, 1.0 = Creative)
-**System Prompts**: Customize behavior with predefined prompt templates:
-- **General**: Default helpful AI assistant behavior
-- **Code**: Specialized for programming and technical tasks
-- **Research**: Optimized for research and analysis tasks
-- **RAG Agent**: Configured for retrieval-augmented generation
-
-### Main Chat Interface
-- Real-time streaming responses with typing indicators
-- File upload support (text, images, PDFs, and various formats)
-- Tool execution visualization with status indicators
-- Analysis panel for complex operations
-- Conversation history and export capabilities
-
-### Tool Management Panel
-- Visual toggle switches for each tool category
-- Real-time tool status indicators
-- Tool configuration options
-- MCP server connection management
-- Performance metrics and usage statistics
+### Runtime Tools (9 tools via 1 Runtime)
+AgentCore-to-AgentCore (A2A) communication:
+- **Report Writer**: Comprehensive research reports
+  - Create report with outline
+  - Write sections with markdown
+  - Generate charts (Python + Code Interpreter)
+  - Export to DOCX (S3 storage)
 
 ## Quick Start
 
 ### Prerequisites
 
-- Python 3.8+
-- Node.js 18+
-- Docker & Docker Compose
-- AWS credentials (for Bedrock access)
+- AWS Account with Bedrock access
+- AWS CLI configured
+- Docker installed
+- Node.js 18+ and Python 3.13+
 
-### Local Deployment
+### Local Development
 
-1. **Clone and setup**:
-   ```bash
-   git clone https://github.com/aws-samples/sample-strands-agent-chatbot.git
-   cd sample-strands-agent-chatbot
-   chmod +x start.sh
-   ```
+```bash
+# 1. Clone and setup
+git clone <repository-url>
+cd sample-strands-agent-chatbot/chatbot-app
+./setup.sh
 
-2. **Configure environment**:
-   ```bash
-   cd agent-blueprint
-   cp .env.example .env
-   # Edit .env with your AWS credentials and API keys
-   ```
+# 2. Configure environment
+cd ../agent-blueprint
+cp .env.example .env
+# Edit .env with your AWS credentials
 
-3. **Start the application**:
-   ```bash
-   ./start.sh
-   ```
+# 3. Start services
+cd ../chatbot-app
+./start.sh
+```
 
-4. **Access the application**:
-   - Frontend: http://localhost:3000
-   - Backend API: http://localhost:8000
-   - API Docs: http://localhost:8000/docs
+Access at: http://localhost:3000
 
 ### Cloud Deployment
 
-For detailed deployment instructions, see [DEPLOYMENT.md](DEPLOYMENT.md).
-
-Quick start:
 ```bash
-# 1. Deploy main application
-cd agent-blueprint/chatbot-deployment/infrastructure
+# Full deployment (all components)
+cd agent-blueprint
+./deploy.sh
+
+# Or deploy individually:
+# 1. Main application (Frontend + AgentCore Runtime)
+cd chatbot-deployment/infrastructure
 ./scripts/deploy.sh
 
-# 2. Deploy MCP servers
-cd ../../serverless-mcp-farm
-./deploy-server.sh
+# 2. AgentCore Gateway (Lambda tools)
+cd ../../agentcore-gateway-stack
+./scripts/deploy.sh
+
+# 3. Report Writer Runtime (optional)
+cd ../agentcore-runtime-a2a-stack/report-writer
+./deploy.sh
 ```
-
-## Iframe Embedding Support
-
-The chatbot supports iframe embedding for seamless integration into existing websites and applications.
-
-<img src="docs/images/iframe-embed.png"
-     alt="Iframe Embedding Example"
-     width="800">
-
-**📋 Quick Start:**
-```html
-<iframe
-  src="https://your-chatbot-domain.com/embed"
-  width="100%"
-  height="600"
-  frameborder="0"
-  title="AI Chatbot">
-</iframe>
-```
-
-**Key Features:**
-- **Responsive Design**: Adapts to any container size
-- **Floating Widget**: Pop-up chat button with customizable styling
-- **Cross-Origin Communication**: Authentication status and event handling
-- **Framework Support**: React, Vue, Angular integration examples
-- **Security**: CORS configuration and CSP header support
-
-**📚 Complete Guide:** See [docs/guides/EMBEDDING_GUIDE.md](docs/guides/EMBEDDING_GUIDE.md) for comprehensive embedding instructions, including:
-- Interactive demo at `/embed-example.html`
-- Framework integration (React, Vue, Angular)
-- Floating chat widget implementation
-- Cross-origin communication setup
-- Security configuration and troubleshooting
-- Production deployment best practices
-
-## Technology Stack
-
-### Backend
-- **Framework**: FastAPI (Python 3.8+)
-- **AI Engine**: Strands Agents (v1.2.0) with AWS Bedrock
-- **Real-time**: Server-Sent Events (SSE) with session isolation
-- **HTTP Client**: aiohttp for MCP server connectivity checks
-- **Storage**: In-memory session management with local filesystem
-- **Containerization**: Docker
-
-### Frontend
-- **Framework**: Next.js 15 (React 18)
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS + shadcn/ui components
-- **State Management**: React Hooks with session storage
-- **Real-time**: EventSource API for SSE connections
-- **File Processing**: Multi-file upload with document support
-
-### Infrastructure
-- **Local**: Docker Compose with hot reload
-- **Cloud**: AWS (ECS Fargate, ALB, S3)
-- **MCP Servers**: AWS Lambda with Streamable HTTP transport
-- **Deployment**: AWS CDK with automated infrastructure setup
 
 ## Configuration
 
-### Tool Configuration
-Edit `chatbot-app/backend/unified_tools_config.json`:
+### Tool Filtering
+
+Tools are configured in `chatbot-app/frontend/src/config/tools-config.json`:
+
 ```json
 {
-  "strands_tools": [
+  "local_tools": [
     {
       "id": "calculator",
       "name": "Calculator",
       "enabled": true,
-      "category": "utilities",
-      "description": "Perform mathematical calculations"
+      "isDynamic": false
     }
   ],
-  "custom_tools": [
+  "gateway_targets": [
     {
-      "id": "spending_analysis_tool",
-      "name": "Spending Analysis Tool",
-      "enabled": true,
-      "category": "finance",
-      "description": "Personal spending pattern analysis with data visualization"
-    }
-  ],
-  "mcp_servers": [
-    {
-      "id": "aws_docs",
-      "name": "AWS Documentation",
+      "id": "gateway_wikipedia-search",
+      "name": "Wikipedia",
       "enabled": false,
-      "transport": "streamable_http",
-      "url": "https://your-lambda-url.amazonaws.com/mcp",
-      "category": "documentation"
-    }
-  ],
-  "agents": [
-    {
-      "id": "spending_analysis_agent",
-      "name": "Spending Analysis Agent",
-      "enabled": true,
-      "category": "finance",
-      "description": "Personal spending pattern analysis with demographic comparisons"
-    },
-    {
-      "id": "financial_narrative_agent", 
-      "name": "Financial Narrative Agent",
-      "enabled": true,
-      "category": "finance",
-      "description": "Creative storytelling tool that transforms spending data into humorous narratives"
+      "isDynamic": true,
+      "tools": [
+        {
+          "id": "gateway_wikipedia-search___wikipedia_search",
+          "name": "Search Articles"
+        }
+      ]
     }
   ]
 }
 ```
 
-### Environment Configuration
-- `agent-blueprint/.env`: Main configuration file for deployment and API keys
-- `agent-blueprint/.env.example`: Template with all available options
-- `chatbot-app/backend/.env`: Backend-specific settings (auto-generated)
-- `chatbot-app/frontend/.env.local`: Frontend-specific settings (auto-generated)
+**isDynamic**: Controls whether users can toggle the tool on/off
 
-## Pre-built MCP Servers
+### API Keys
 
-The platform includes ready-to-deploy Lambda MCP servers with Streamable HTTP transport:
+Configure Gateway tool API keys in AWS Secrets Manager:
 
-### AWS Documentation Server
-- **Purpose**: Retrieve AWS service documentation
-- **Deployment**: `agent-blueprint/direct-lambda-mcp/aws-documentation/`
-- **Usage**: Ask questions about AWS services and best practices
-- **Origin**: https://github.com/awslabs/mcp/tree/main/src/aws-documentation-mcp-server
-
-### AWS Pricing Server
-- **Purpose**: Get real-time AWS pricing information
-- **Deployment**: `agent-blueprint/direct-lambda-mcp/aws-pricing/`
-- **Usage**: Compare costs across AWS services and regions
-- **Origin**: https://github.com/awslabs/mcp/tree/main/src/aws-pricing-mcp-server
-
-### Bedrock KB Retrieval Server
-- **Purpose**: Search enterprise knowledge bases
-- **Deployment**: `agent-blueprint/direct-lambda-mcp/bedrock-kb-retrieval/`
-- **Usage**: Enterprise knowledge retrieval and Q&A
-- **Origin**: https://github.com/awslabs/mcp/tree/main/src/bedrock-kb-retrieval-mcp-server
-
-### Tavily Web Search Server
-- **Purpose**: Web search capabilities with AI-powered results
-- **Deployment**: `agent-blueprint/direct-lambda-mcp/tavily-web-search/`
-- **Usage**: Real-time web information and research
-
-### Nova Act Browser Server
-- **Purpose**: Hybrid browser automation with natural language control and Playwright API access
-- **Deployment**: `agent-blueprint/fargate-mcp-farm/nova-act-mcp/`
-- **Usage**: Natural language browser interactions ("click the login button") and precise API control (CSS selectors, JavaScript execution)
-- **Features**:
-  - High-level natural language actions (navigate, act, extract)
-  - Low-level Playwright API tools (get_page_structure, quick_action, execute_js, wait_for_condition)
-  - Session management with headless/headed mode support
-  - Screenshot capture and page analysis
-- **API Key**: Requires Nova Act API key configuration via AWS Parameter Store or .env.local
-
-### Python Runtime Server
-- **Purpose**: Safe Python code execution in sandboxed environment
-- **Deployment**: `agent-blueprint/stateful-mcp/python-mcp/`
-- **Usage**: Data analysis, computations, and Python script execution
-- **Origin**: https://github.com/pydantic/pydantic-ai/tree/main/mcp-run-python
-
-## Deployment Options
-
-### Local Development
 ```bash
-./start.sh
+# Tavily API Key
+aws secretsmanager put-secret-value \
+  --secret-id strands-agent-chatbot/mcp/tavily-api-key \
+  --secret-string "YOUR_KEY"
+
+# Google Search Credentials
+aws secretsmanager put-secret-value \
+  --secret-id strands-agent-chatbot/mcp/google-credentials \
+  --secret-string '{"api_key":"KEY","search_engine_id":"ID"}'
 ```
 
-### AWS Cloud Deployment
-```bash
-# See DEPLOYMENT.md for complete instructions
-# 1. Deploy main application (creates VPC)
-cd agent-blueprint/chatbot-deployment/infrastructure
-./scripts/deploy.sh
+### Model Configuration
 
-# 2. Deploy serverless MCP servers (independent)
-cd ../../serverless-mcp-farm
-./deploy-server.sh
+<img src="docs/images/model-config.png"
+     alt="Model Configuration"
+     width="400">
 
-# 3. Deploy shared infrastructure (uses VPC)
-cd ../fargate-mcp-farm/shared-infrastructure
-./deploy.sh
+Configure via UI:
+- **Model**: Claude Sonnet 4, Haiku 4.5, etc.
+- **Temperature**: 0.0 (focused) to 1.0 (creative)
+- **System Prompt**: General, Code, Research, RAG Agent
+- **Caching**: Enable/disable prompt caching
 
-# 4. Deploy stateful MCP servers (uses VPC + shared ALB)
-cd ../
-./deploy-all.sh -s nova-act-mcp
+## Deployment Architecture
+
+```
+User → CloudFront → ALB → Frontend+BFF (Fargate)
+                              ↓ HTTP
+                         AgentCore Runtime
+                         (AWS Bedrock service)
+                              ↓
+            ┌─────────────────┼─────────────────┐
+            │                 │                 │
+            ↓ SigV4           ↓ A2A             ↓ AWS API
+     AgentCore Gateway   Report Writer     Built-in Tools
+     (API Gateway)       Runtime           (Code Interpreter)
+            ↓
+     Lambda Functions (5x)
+     (MCP Protocol)
 ```
 
-See `DEPLOYMENT.md` for detailed AWS deployment instructions using CDK.
+## Technology Stack
+
+- **Frontend**: Next.js 15, TypeScript, Tailwind CSS, shadcn/ui
+- **BFF**: Next.js API Routes (server-side) on Fargate
+- **Runtime**: Strands Agents v1.2.0 + FastAPI (Python 3.13) on AgentCore Runtime
+- **AI**: AWS Bedrock (Claude Haiku 4.5 default)
+- **AgentCore**: Runtime, Memory, Gateway components
+- **Tools**: Lambda Functions (MCP protocol)
+- **Infrastructure**: AWS CDK, CloudFront, Cognito
 
 
-### Adding New Tools
-1. **Built-in Tools**: Extend Strands framework capabilities
-2. **Custom Tools**: Create business-specific functionality
-3. **MCP Servers**: Develop external service integrations
-4. **Agents**: Build specialized AI workflows
+## Iframe Embedding
 
-## 🔍 AgentCore Observability Setup
+Embed the chatbot in external applications:
 
-This application includes full AgentCore observability integration with AWS CloudWatch for comprehensive trace and log monitoring.
-
-<img src="docs/images/observability.png" 
-     alt="Model Configuration Interface" 
-     width="800">
-
-### Prerequisites
-- AWS CLI installed and configured
-- AWS credentials with appropriate permissions (see below)
-- CloudWatch Transaction Search enabled
-
-### Required AWS Permissions
-Your AWS role/user needs these permissions:
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "logs:CreateLogGroup",
-        "logs:CreateLogStream", 
-        "logs:PutLogEvents",
-        "logs:DescribeLogGroups",
-        "logs:DescribeLogStreams"
-      ],
-      "Resource": "arn:aws:logs:*:*:log-group:agents/*"
-    },
-    {
-      "Effect": "Allow",
-      "Action": [
-        "cloudwatch:PutMetricData"
-      ],
-      "Resource": "*"
-    }
-  ]
-}
+```html
+<iframe
+  src="https://your-domain.com/embed"
+  width="100%"
+  height="600"
+  frameborder="0">
+</iframe>
 ```
 
-### Quick Setup
-1. **Run the observability setup script:**
-   ```bash
-   chmod +x setup-observability.sh
-   ./setup-observability.sh
-   ```
-   This will:
-   - Create CloudWatch log groups and streams
-   - Generate the `.env` file with OTEL configuration
-   - Provide next steps for enabling Transaction Search
+See [docs/guides/EMBEDDING_GUIDE.md](docs/guides/EMBEDDING_GUIDE.md) for details.
 
-2. **Enable CloudWatch Transaction Search:**
-   - Open [CloudWatch Console](https://console.aws.amazon.com/cloudwatch/)
-   - Navigate to **Application Signals (APM)** → **Transaction search**
-   - Choose **Enable Transaction Search**
-   - Select **ingest spans as structured logs**
-   - Choose **Save**
+## Project Structure
 
-3. **Start the application:**
-   ```bash
-   cd chatbot-app && ./start.sh
-   ```
+```
+sample-strands-agent-chatbot/
+├── chatbot-app/
+│   ├── frontend/              # Next.js (Frontend + BFF)
+│   │   └── src/
+│   │       ├── app/api/       # API routes (BFF layer)
+│   │       ├── components/    # React components
+│   │       └── config/        # Tool configuration
+│   └── agentcore/             # AgentCore Runtime
+│       └── src/
+│           ├── agent/         # ChatbotAgent + session management
+│           ├── local_tools/   # Weather, visualization, etc.
+│           ├── builtin_tools/ # Code Interpreter tools
+│           └── routers/       # FastAPI routes
+│
+└── agent-blueprint/
+    ├── chatbot-deployment/    # Main app stack (Frontend+Runtime)
+    ├── agentcore-gateway-stack/   # Gateway + 5 Lambda functions
+    ├── agentcore-runtime-stack/   # Runtime deployment (shared)
+    └── agentcore-runtime-a2a-stack/   # Report Writer (optional)
+```
 
-### Viewing Traces
-After setup, you can monitor your agent interactions in:
+## What's Not Implemented
 
-- **CloudWatch Application Signals**: Traces and performance metrics
-- **CloudWatch GenAI Observability Dashboard**: Dedicated AgentCore monitoring  
-- **CloudWatch Logs**: Detailed log streams with structured data
-- **Session-based filtering**: Use `session.id` to track individual conversations
+- **Browser Built-in Tool**: Natural language browser automation (planned)
+- **Redis Short-term Memory**: Currently using AgentCore Memory only
+- **Multi-model Support**: Only Claude models (Bedrock limitation)
 
-### What Gets Tracked
-- **HTTP Requests**: All API calls and streaming endpoints
-- **Bedrock Calls**: LLM inference requests and responses
-- **Tool Executions**: Individual tool calls with inputs/outputs
-- **Session Context**: Conversation-level trace grouping
-- **Error Tracking**: Failed operations and exceptions
+## Documentation
 
-### Features Implemented
-✅ **Session ID Context Propagation**: Each conversation appears as a unified trace  
-✅ **Tool Execution Spans**: All tool calls are instrumented with `execute_tool.*` spans  
-✅ **Auto-instrumentation**: FastAPI, Bedrock, and HTTP calls automatically traced  
-✅ **Real-time Monitoring**: Ultra-fast batch processing for immediate trace visibility  
+- [DEPLOYMENT.md](DEPLOYMENT.md): Detailed deployment instructions
+
+## Support
+
+- **Issues**: [GitHub Issues](https://github.com/aws-samples/sample-strands-agent-chatbot/issues)
+- **Troubleshooting**: [docs/guides/TROUBLESHOOTING.md](docs/guides/TROUBLESHOOTING.md)
 
 ## License
 
 MIT License - see LICENSE file for details.
 
-## Support
+---
 
-For issues and questions:
-- **Troubleshooting Guide**: See [docs/guides/TROUBLESHOOTING.md](docs/guides/TROUBLESHOOTING.md) for common issues and solutions
-- **Deployment Issues**: Check the troubleshooting section in DEPLOYMENT.md
-- **Prerequisites**: Ensure all prerequisites are installed
-- **AWS Setup**: Verify AWS credentials and permissions
-- **MCP Connectivity**: Test MCP server connectivity
-
+**Built with AWS Bedrock AgentCore** | [AWS Samples](https://github.com/aws-samples)
