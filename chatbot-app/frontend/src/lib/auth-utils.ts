@@ -63,15 +63,14 @@ export function getSessionId(request: Request, userId: string): { sessionId: str
   }
 
   // Generate new session ID >= 33 characters
-  // Format: userPrefix_timestamp_random1_random2 (approx 35-45 chars)
+  // Format: userPrefix_timestamp_randomUUID (approx 50+ chars)
   const timestamp = Date.now().toString(36)  // ~10 chars
-  const random1 = Math.random().toString(36).substring(2, 15)  // 13 chars
-  const random2 = Math.random().toString(36).substring(2, 15)  // 13 chars
+  const randomId = crypto.randomUUID().replace(/-/g, '')  // 32 hex chars
   const userPrefix = userId !== 'anonymous' ? userId.substring(0, 8) : 'anon0000'  // 8 chars
 
-  const sessionId = `${userPrefix}_${timestamp}_${random1}_${random2}`
+  const sessionId = `${userPrefix}_${timestamp}_${randomId}`
 
-  console.log(`[Auth] Generated session ID: ${sessionId} (length: ${sessionId.length})`)
+  console.log(`[Auth] Generated session ID (length: ${sessionId.length})`)
 
   return { sessionId, isNew: true }
 }

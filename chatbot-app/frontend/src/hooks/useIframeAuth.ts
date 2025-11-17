@@ -105,9 +105,11 @@ export function useIframeAuth(): IframeAuthState {
  * Utility function to post authentication status to parent window
  * Useful for parent pages that need to know about auth state
  */
-export function postAuthStatusToParent(isAuthenticated: boolean, user?: AuthUser | null) {
+export function postAuthStatusToParent(isAuthenticated: boolean, user?: AuthUser | null, targetOrigin: string = '*') {
   if (typeof window !== 'undefined' && window.parent && window.parent !== window) {
     try {
+      // Use specific origin if provided, otherwise allow all (for backward compatibility)
+      // Production deployments should specify targetOrigin explicitly
       window.parent.postMessage({
         type: 'CHATBOT_AUTH_STATUS',
         payload: {
@@ -115,7 +117,7 @@ export function postAuthStatusToParent(isAuthenticated: boolean, user?: AuthUser
           userId: user?.userId || null,
           timestamp: Date.now(),
         }
-      }, '*');
+      }, targetOrigin);
     } catch (error) {
       console.warn('Failed to post auth status to parent:', error);
     }
