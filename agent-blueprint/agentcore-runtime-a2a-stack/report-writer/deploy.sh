@@ -45,45 +45,12 @@ else
 fi
 echo ""
 
-echo -e "${YELLOW}Step 2: Building Docker Image${NC}"
-cd src
-
-# Build Docker image
-echo "Building Docker image..."
-docker build --platform linux/amd64 -t $REPO_NAME:latest -f Dockerfile .
-
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✓${NC} Docker image built successfully"
-else
-    echo -e "${RED}✗${NC} Docker build failed"
-    exit 1
-fi
+# NOTE: Docker image is built automatically by CodeBuild during CDK deployment
+# No need for local Docker build - CodeBuild handles it
+echo -e "${GREEN}✓${NC} Docker image will be built by CodeBuild (no local build required)"
 echo ""
 
-echo -e "${YELLOW}Step 3: Pushing to ECR${NC}"
-
-# Login to ECR
-echo "Logging in to ECR..."
-aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_URI
-
-# Tag and push image
-echo "Tagging image..."
-docker tag $REPO_NAME:latest $ECR_URI:latest
-
-echo "Pushing to ECR..."
-docker push $ECR_URI:latest
-
-if [ $? -eq 0 ]; then
-    echo -e "${GREEN}✓${NC} Image pushed to ECR: $ECR_URI:latest"
-else
-    echo -e "${RED}✗${NC} Failed to push image to ECR"
-    exit 1
-fi
-echo ""
-
-cd ..
-
-echo -e "${YELLOW}Step 4: Deploying CDK Stack${NC}"
+echo -e "${YELLOW}Step 2: Deploying CDK Stack${NC}"
 cd cdk
 
 # Install CDK dependencies if needed
@@ -115,7 +82,7 @@ fi
 echo ""
 
 # Get outputs
-echo -e "${YELLOW}Step 5: Retrieving Deployment Information${NC}"
+echo -e "${YELLOW}Step 3: Retrieving Deployment Information${NC}"
 
 RUNTIME_ENDPOINT=$(aws cloudformation describe-stacks \
     --stack-name ReportWriterAgentCoreStack \

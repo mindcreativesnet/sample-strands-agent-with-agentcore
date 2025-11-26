@@ -6,14 +6,20 @@ from aws_cdk import (
     Stack,
     CfnOutput,
     RemovalPolicy,
+    Duration,
     aws_ecr as ecr,
     aws_iam as iam,
     aws_ssm as ssm,
     aws_logs as logs,
     aws_s3 as s3,
+    aws_s3_deployment as s3deploy,
+    aws_codebuild as codebuild,
+    custom_resources as cr,
+    aws_lambda as lambda_,
     aws_bedrockagentcore as bedrockagentcore,
 )
 from constructs import Construct
+import os
 
 
 class ReportWriterAgentCoreStack(Stack):
@@ -32,14 +38,31 @@ class ReportWriterAgentCoreStack(Stack):
         super().__init__(scope, construct_id, **kwargs)
 
         region = self.region
+        project_name = "report-writer-a2a"
 
         # ==================== ECR Repository ====================
-        # Import existing ECR repository (created by deploy.sh before CDK deployment)
-        ecr_repository = ecr.Repository.from_repository_name(
-            self,
-            "ReportWriterA2aRepository",
-            repository_name=f"report-writer-a2a-repository"
-        )
+        # Use existing repository if USE_EXISTING_ECR=true
+        use_existing_ecr = os.environ.get('USE_EXISTING_ECR', 'false') == 'true'
+        if use_existing_ecr:
+            ecr_repository = ecr.Repository.from_repository_name(
+                self,
+                "ReportWriterA2aRepository",
+                repository_name=f"{project_name}-repository"
+            )
+        else:
+            ecr_repository = ecr.Repository(
+                self,
+                "ReportWriterA2aRepository",
+                repository_name=f"{project_name}-repository",
+                removal_policy=RemovalPolicy.RETAIN,
+                image_scan_on_push=True,
+                lifecycle_rules=[
+                    ecr.LifecycleRule(
+                        description="Keep last 10 images",
+                        max_image_count=10
+                    )
+                ]
+            )
 
         # ==================== S3 Bucket for Report Storage ====================
         # Create standard S3 bucket for final reports
@@ -61,6 +84,162 @@ class ReportWriterAgentCoreStack(Stack):
             string_parameter_name="/strands-agent-chatbot/dev/agentcore/code-interpreter-id"
         )
         code_interpreter_id = code_interpreter_id_param.string_value
+
+        # ==================== CodeBuild for Container Image ====================
+        # Step 1: S3 Bucket for CodeBuild Source
+        source_bucket = s3.Bucket(
+            self,
+            "SourceBucket",
+            bucket_name=f"{project_name}-sources-{self.account}-{region}",
+            removal_policy=RemovalPolicy.DESTROY,
+            auto_delete_objects=True,
+            lifecycle_rules=[
+                s3.LifecycleRule(
+                    expiration=Duration.days(7),
+                    id="DeleteOldSources"
+                )
+            ]
+        )
+
+        # Step 2: CodeBuild Project
+        codebuild_role = iam.Role(
+            self,
+            "CodeBuildRole",
+            assumed_by=iam.ServicePrincipal("codebuild.amazonaws.com"),
+            description="Build role for Report Writer container image"
+        )
+
+        # ECR Token Access
+        codebuild_role.add_to_policy(
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=["ecr:GetAuthorizationToken"],
+                resources=["*"]
+            )
+        )
+
+        # ECR Image Operations
+        codebuild_role.add_to_policy(
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=[
+                    "ecr:BatchCheckLayerAvailability",
+                    "ecr:BatchGetImage",
+                    "ecr:GetDownloadUrlForLayer",
+                    "ecr:PutImage",
+                    "ecr:InitiateLayerUpload",
+                    "ecr:UploadLayerPart",
+                    "ecr:CompleteLayerUpload"
+                ],
+                resources=[
+                    f"arn:aws:ecr:{region}:{self.account}:repository/{ecr_repository.repository_name}"
+                ]
+            )
+        )
+
+        # CloudWatch Logs
+        codebuild_role.add_to_policy(
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
+                resources=[f"arn:aws:logs:{region}:{self.account}:log-group:/aws/codebuild/{project_name}-*"]
+            )
+        )
+
+        # S3 Access
+        codebuild_role.add_to_policy(
+            iam.PolicyStatement(
+                effect=iam.Effect.ALLOW,
+                actions=["s3:GetObject", "s3:PutObject", "s3:ListBucket"],
+                resources=[source_bucket.bucket_arn, f"{source_bucket.bucket_arn}/*"],
+                conditions={
+                    "StringEquals": {
+                        "s3:ResourceAccount": self.account
+                    }
+                }
+            )
+        )
+
+        build_project = codebuild.Project(
+            self,
+            "BuildProject",
+            project_name=f"{project_name}-builder",
+            description="Builds AMD64 container image for Report Writer A2A Agent",
+            role=codebuild_role,
+            environment=codebuild.BuildEnvironment(
+                build_image=codebuild.LinuxBuildImage.AMAZON_LINUX_2_5,
+                compute_type=codebuild.ComputeType.SMALL,
+                privileged=True
+            ),
+            source=codebuild.Source.s3(
+                bucket=source_bucket,
+                path="source.zip"
+            ),
+            build_spec=codebuild.BuildSpec.from_object({
+                "version": "0.2",
+                "phases": {
+                    "pre_build": {
+                        "commands": [
+                            "echo Logging in to Amazon ECR...",
+                            f"aws ecr get-login-password --region {region} | docker login --username AWS --password-stdin {self.account}.dkr.ecr.{region}.amazonaws.com",
+                            "IMAGE_TAG=latest",
+                            f"IMAGE_URI={ecr_repository.repository_uri}:$IMAGE_TAG"
+                        ]
+                    },
+                    "build": {
+                        "commands": [
+                            "echo Building Docker image...",
+                            "cd src",
+                            "docker build --platform linux/amd64 -t $IMAGE_URI -f Dockerfile ."
+                        ]
+                    },
+                    "post_build": {
+                        "commands": [
+                            "echo Pushing Docker image to ECR...",
+                            "docker push $IMAGE_URI",
+                            "echo Build completed on `date`"
+                        ]
+                    }
+                }
+            })
+        )
+
+        # Step 3: Upload source to S3
+        s3deploy.BucketDeployment(
+            self,
+            "SourceDeployment",
+            sources=[s3deploy.Source.asset("../src")],
+            destination_bucket=source_bucket,
+            destination_key_prefix="",
+            prune=False
+        )
+
+        # Step 4: Trigger CodeBuild
+        build_trigger = cr.AwsCustomResource(
+            self,
+            "TriggerCodeBuild",
+            on_create=cr.AwsSdkCall(
+                service="CodeBuild",
+                action="startBuild",
+                parameters={"projectName": build_project.project_name},
+                physical_resource_id=cr.PhysicalResourceId.of(f"{project_name}-build-trigger")
+            ),
+            on_update=cr.AwsSdkCall(
+                service="CodeBuild",
+                action="startBuild",
+                parameters={"projectName": build_project.project_name},
+                physical_resource_id=cr.PhysicalResourceId.of(f"{project_name}-build-trigger")
+            ),
+            policy=cr.AwsCustomResourcePolicy.from_statements([
+                iam.PolicyStatement(
+                    actions=["codebuild:StartBuild", "codebuild:BatchGetBuilds"],
+                    resources=[build_project.project_arn]
+                )
+            ])
+        )
+
+        build_trigger.node.add_dependency(build_project)
+        build_trigger.node.add_dependency(source_bucket)
 
         # ==================== IAM Role for AgentCore Runtime ====================
         runtime_role = iam.Role(

@@ -239,23 +239,6 @@ deploy_agentcore_runtime() {
     log_info "ECR Repository: $REPO_URI"
     log_info "Execution Role: $EXECUTION_ROLE_ARN"
 
-    # Build and push Docker image
-    log_step "Building Agent Core Docker image..."
-    cd ../../chatbot-app/agentcore
-
-    # Login to ECR
-    aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $REPO_URI
-
-    # Build image
-    IMAGE_TAG="latest"
-    docker build -t $REPO_URI:$IMAGE_TAG -f Dockerfile .
-
-    # Push image
-    log_step "Pushing image to ECR..."
-    docker push $REPO_URI:$IMAGE_TAG
-
-    log_info "Image pushed: $REPO_URI:$IMAGE_TAG"
-
     # Get Runtime info from CDK stack outputs
     log_step "Retrieving Runtime information from CDK stack..."
 
@@ -542,7 +525,6 @@ deploy_s3_iceberg() {
 # Main function
 main() {
     display_banner
-    check_docker
     check_aws
     select_region
     display_menu
