@@ -80,7 +80,8 @@ export const useStreamEvents = ({
   const handleToolUseEvent = useCallback((data: StreamEvent) => {
     if (data.type === 'tool_use') {
       // Fix empty string input - convert to empty object for UI consistency
-      const normalizedInput = (data.input as any) === "" || data.input === null ? {} : data.input
+      // Also handle undefined for tools with no input parameters (e.g., browser_get_page_info)
+      const normalizedInput = (data.input as any) === "" || data.input === null || data.input === undefined ? {} : data.input
       
       // Agent-type tool auto-popup removed - users can manually open Analysis Panel if needed
       
@@ -110,7 +111,7 @@ export const useStreamEvents = ({
           if (msg.isToolMessage && msg.toolExecutions) {
             const updatedToolExecutions = msg.toolExecutions.map(tool =>
               tool.id === data.toolUseId
-                ? { ...tool, toolInput: data.input }
+                ? { ...tool, toolInput: normalizedInput }
                 : tool
             )
             return { ...msg, toolExecutions: updatedToolExecutions }
