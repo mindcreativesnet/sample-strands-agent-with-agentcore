@@ -231,6 +231,11 @@ export const useChat = (props?: UseChatProps): UseChatReturn => {
         // 404 is expected for new sessions not yet saved to DynamoDB
         if (response.status === 404) {
           console.log('[useChat] Session not yet created in DynamoDB (new session)')
+          // Clear browser session from previous session
+          setSessionState(prev => ({
+            ...prev,
+            browserSession: null
+          }))
           return
         }
 
