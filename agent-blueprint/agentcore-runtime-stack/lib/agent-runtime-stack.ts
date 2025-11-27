@@ -127,6 +127,102 @@ export class AgentRuntimeStack extends cdk.Stack {
       })
     )
 
+    // Transaction Search Prerequisites - X-Ray permissions
+    executionRole.addToPolicy(
+      new iam.PolicyStatement({
+        sid: 'TransactionSearchXRayPermissions',
+        effect: iam.Effect.ALLOW,
+        actions: [
+          'xray:GetTraceSegmentDestination',
+          'xray:UpdateTraceSegmentDestination',
+          'xray:GetIndexingRules',
+          'xray:UpdateIndexingRule',
+        ],
+        resources: ['*'],
+      })
+    )
+
+    // Transaction Search Prerequisites - CloudWatch Log Group permissions
+    executionRole.addToPolicy(
+      new iam.PolicyStatement({
+        sid: 'TransactionSearchLogGroupPermissions',
+        effect: iam.Effect.ALLOW,
+        actions: [
+          'logs:CreateLogGroup',
+          'logs:CreateLogStream',
+          'logs:PutRetentionPolicy',
+        ],
+        resources: [
+          `arn:aws:logs:*:*:log-group:/aws/application-signals/data:*`,
+          `arn:aws:logs:*:*:log-group:aws/spans:*`,
+        ],
+      })
+    )
+
+    // Transaction Search Prerequisites - CloudWatch Logs resource policy permissions
+    executionRole.addToPolicy(
+      new iam.PolicyStatement({
+        sid: 'TransactionSearchLogsPermissions',
+        effect: iam.Effect.ALLOW,
+        actions: [
+          'logs:PutResourcePolicy',
+          'logs:DescribeResourcePolicies',
+        ],
+        resources: ['*'],
+      })
+    )
+
+    // Transaction Search Prerequisites - Application Signals permissions
+    executionRole.addToPolicy(
+      new iam.PolicyStatement({
+        sid: 'TransactionSearchApplicationSignalsPermissions',
+        effect: iam.Effect.ALLOW,
+        actions: ['application-signals:StartDiscovery'],
+        resources: ['*'],
+      })
+    )
+
+    // Transaction Search Prerequisites - Service-linked role permissions
+    executionRole.addToPolicy(
+      new iam.PolicyStatement({
+        sid: 'CloudWatchApplicationSignalsCreateServiceLinkedRolePermissions',
+        effect: iam.Effect.ALLOW,
+        actions: ['iam:CreateServiceLinkedRole'],
+        resources: [
+          'arn:aws:iam::*:role/aws-service-role/application-signals.cloudwatch.amazonaws.com/AWSServiceRoleForCloudWatchApplicationSignals',
+        ],
+        conditions: {
+          StringLike: {
+            'iam:AWSServiceName': 'application-signals.cloudwatch.amazonaws.com',
+          },
+        },
+      })
+    )
+
+    // Transaction Search Prerequisites - Get role permissions
+    executionRole.addToPolicy(
+      new iam.PolicyStatement({
+        sid: 'CloudWatchApplicationSignalsGetRolePermissions',
+        effect: iam.Effect.ALLOW,
+        actions: ['iam:GetRole'],
+        resources: [
+          'arn:aws:iam::*:role/aws-service-role/application-signals.cloudwatch.amazonaws.com/AWSServiceRoleForCloudWatchApplicationSignals',
+        ],
+      })
+    )
+
+    // Transaction Search Prerequisites - CloudTrail permissions
+    executionRole.addToPolicy(
+      new iam.PolicyStatement({
+        sid: 'CloudWatchApplicationSignalsCloudTrailPermissions',
+        effect: iam.Effect.ALLOW,
+        actions: ['cloudtrail:CreateServiceLinkedChannel'],
+        resources: [
+          'arn:aws:cloudtrail:*:*:channel/aws-service-channel/application-signals/*',
+        ],
+      })
+    )
+
     // CloudWatch Metrics
     executionRole.addToPolicy(
       new iam.PolicyStatement({

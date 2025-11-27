@@ -450,6 +450,7 @@ sample-strands-agent-chatbot/
 ## Documentation
 
 - [DEPLOYMENT.md](DEPLOYMENT.md): Detailed deployment instructions
+- [Transaction Search Setup](docs/TRANSACTION_SEARCH.md): Enable CloudWatch Transaction Search for enhanced observability
 
 ## Support
 

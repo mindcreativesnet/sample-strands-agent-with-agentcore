@@ -8,29 +8,35 @@ export const runtime = 'nodejs'
 // Available Bedrock models
 const AVAILABLE_MODELS = [
   {
-    id: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
-    name: 'Claude Sonnet 4.5',
-    provider: 'Anthropic',
-    description: 'Most capable model, balanced performance'
+    id: 'openai.gpt-oss-20b-1:0',
+    name: 'GPT-OSS 20B',
+    provider: 'OpenAI',
+    description: 'Open-source 20 billion parameter model'
   },
-  {
-    id: 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
-    name: 'Claude Haiku 4.5',
-    provider: 'Anthropic',
-    description: 'Fast and efficient, cost-effective'
-  },
-  {
-    id: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
-    name: 'Claude 3.5 Sonnet',
-    provider: 'Anthropic',
-    description: 'Previous generation, still very capable'
-  },
-  {
-    id: 'anthropic.claude-3-5-haiku-20241022-v1:0',
-    name: 'Claude 3.5 Haiku',
-    provider: 'Anthropic',
-    description: 'Previous generation, fast responses'
-  }
+  // {
+  //   id: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
+  //   name: 'Claude Sonnet 4.5',
+  //   provider: 'Anthropic',
+  //   description: 'Most capable model, balanced performance'
+  // },
+  // {
+  //   id: 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
+  //   name: 'Claude Haiku 4.5',
+  //   provider: 'Anthropic',
+  //   description: 'Fast and efficient, cost-effective'
+  // },
+  // {
+  //   id: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+  //   name: 'Claude 3.5 Sonnet',
+  //   provider: 'Anthropic',
+  //   description: 'Previous generation, still very capable'
+  // },
+  // {
+  //   id: 'anthropic.claude-3-5-haiku-20241022-v1:0',
+  //   name: 'Claude 3.5 Haiku',
+  //   provider: 'Anthropic',
+  //   description: 'Previous generation, fast responses'
+  // }
 ]
 
 export async function GET() {
