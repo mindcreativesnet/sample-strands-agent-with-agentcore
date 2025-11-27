@@ -191,7 +191,7 @@ export class AgentRuntimeStack extends cdk.Stack {
         resources: [
           'arn:aws:iam::*:role/aws-service-role/application-signals.cloudwatch.amazonaws.com/AWSServiceRoleForCloudWatchApplicationSignals',
         ],
-        conditions: {
+        condition: {
           StringLike: {
             'iam:AWSServiceName': 'application-signals.cloudwatch.amazonaws.com',
           },

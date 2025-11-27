@@ -54,7 +54,7 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --help)
-      grep "^#" "$0" | grep -v "#!/bin/bash" | sed 's/^# \?//'
+      awk 'NR==1{next} /^#/ {sub(/^# ?/, ""); print; next} /^[[:space:]]*$/ {next} {exit}' "$0"
       exit 0
       ;;
     *)
@@ -175,8 +175,8 @@ echo -e "${YELLOW}→ Step 4: Verifying Transaction Search configuration...${NC}
 
 # Get trace segment destination
 DEST_STATUS=$($AWS_CMD xray get-trace-segment-destination --region "$AWS_REGION" --output json 2>/dev/null || echo "{}")
-DESTINATION=$(echo "$DEST_STATUS" | grep -o '"Destination": "[^"]*"' | cut -d'"' -f4)
-STATUS=$(echo "$DEST_STATUS" | grep -o '"Status": "[^"]*"' | cut -d'"' -f4)
+DESTINATION=$(echo "$DEST_STATUS" | jq -r '.Destination // "unknown"')
+STATUS=$(echo "$DEST_STATUS" | jq -r '.Status // "unknown"')
 
 echo ""
 echo -e "${BLUE}═══════════════════════════════════════════════════════════════${NC}"
