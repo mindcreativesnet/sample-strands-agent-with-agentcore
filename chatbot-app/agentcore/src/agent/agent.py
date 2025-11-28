@@ -47,8 +47,6 @@ import local_tools
 # Import built-in tools module (AWS Bedrock-powered tools)
 import builtin_tools
 
-# Import Gateway MCP client
-from agent.gateway_mcp_client import get_gateway_client_if_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -192,10 +190,10 @@ TOOL_REGISTRY = {
 
 # Dynamically load all local tools from local_tools.__all__
 # This ensures we only need to maintain the list in one place (__init__.py)
-for tool_name in local_tools.__all__:
-    tool_obj = getattr(local_tools, tool_name)
-    TOOL_REGISTRY[tool_name] = tool_obj
-    logger.info(f"Registered local tool: {tool_name}")
+# for tool_name in local_tools.__all__:
+#     tool_obj = getattr(local_tools, tool_name)
+#     TOOL_REGISTRY[tool_name] = tool_obj
+#     logger.info(f"Registered local tool: {tool_name}")
 
 # Dynamically load all builtin tools from builtin_tools.__all__
 # This ensures we only need to maintain the list in one place (__init__.py)
@@ -212,11 +210,6 @@ class ChatbotAgent:
         self,
         session_id: str,
         user_id: Optional[str] = None,
-        enabled_tools: Optional[List[str]] = None,
-        model_id: Optional[str] = None,
-        temperature: Optional[float] = None,
-        system_prompt: Optional[str] = None,
-        caching_enabled: Optional[bool] = None
     ):
         """
         Initialize agent with specific configuration and AgentCore Memory
@@ -224,11 +217,6 @@ class ChatbotAgent:
         Args:
             session_id: Session identifier for message persistence
             user_id: User identifier for cross-session preferences (defaults to session_id)
-            enabled_tools: List of tool IDs to enable. If None, all tools are enabled.
-            model_id: Bedrock model ID to use
-            temperature: Model temperature (0.0 - 1.0)
-            system_prompt: System prompt text
-            caching_enabled: Whether to enable prompt caching
         """
         global _global_stream_processor
         self.stream_processor = StreamEventProcessor()
@@ -236,12 +224,10 @@ class ChatbotAgent:
         self.agent = None
         self.session_id = session_id
         self.user_id = user_id or session_id  # Use session_id as user_id if not provided
-        self.enabled_tools = enabled_tools
-        self.gateway_client = None  # Store Gateway MCP client for lifecycle management
 
         # Store model configuration
-        self.model_id = model_id or "us.anthropic.claude-haiku-4-5-20251001-v1:0"
-        self.temperature = temperature if temperature is not None else 0.7
+        self.model_id = "openai.gpt-oss-20b-1:0"
+        self.temperature = 1
 
         # Build system prompt with current date
         base_system_prompt = system_prompt or """You are an intelligent AI agent with dynamic tool capabilities. You can perform various tasks based on the combination of tools available to you.
@@ -270,7 +256,7 @@ Your goal is to be helpful, accurate, and efficient in completing user requests 
         current_date = get_current_date_pacific()
         self.system_prompt = f"{base_system_prompt}\n\nCurrent date: {current_date}"
 
-        self.caching_enabled = caching_enabled if caching_enabled is not None else True
+        self.caching_enabled = True
 
         # Session Manager Selection: AgentCore Memory (cloud) vs File-based (local)
         memory_id = os.environ.get('MEMORY_ID')
