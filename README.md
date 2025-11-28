@@ -11,6 +11,11 @@ Combines Strands Agent orchestration with AWS Bedrock AgentCore services:
 - **AgentCore Runtime**: Containerized agent deployment as managed AWS service
 - **AgentCore Memory**: Persistent conversation storage with user preference retrieval
 - **AgentCore Gateway**: MCP tool integration with SigV4 authentication
+- **AgentCore Code Interpreter**: Built-in code execution for data analysis, visualization, and chart generation
+- **AgentCore Browser**: Web automation via headless browser with live view streaming
+- **Amazon Nova Act**: Agentic foundation model for browser automation with visual reasoning
+
+**Quick Links:** [📸 UI Preview](#ui-preview) | [📹 Demo Videos](#demo-videos)
 
 ## Architecture
 
@@ -51,6 +56,7 @@ Combines Strands Agent orchestration with AWS Bedrock AgentCore services:
    - **Runtime Tools** (Work in Progress): Report Writer with A2A protocol
 
 ## Key Features
+
 - Amazon Bedrock AgentCore Runtime
 - Strands Agent Orchestration
 - MCP Gateway Tools (Wikipedia, ArXiv, Google, Tavily)
@@ -64,6 +70,19 @@ Combines Strands Agent orchestration with AWS Bedrock AgentCore services:
 - Web automation agent via AgentCore Browser + Nova Act
 - RAG-enabled chatbot using AgentCore Memory
 - Multi-protocol research assistant (MCP, A2A, AWS SDK)
+
+## UI Preview
+
+<img src="docs/images/home.svg" alt="Application Overview" width="900">
+
+*Interactive chatbot with dynamic tool filtering and multi-agent orchestration*
+
+## Demo Videos
+
+| Finance Assistant | Browser Automation | Academic Research |
+|:---:|:---:|:---:|
+| [<img src="docs/images/demo-finance.png" width="280">](https://drive.google.com/file/d/1QQyaBWwzNOiLWe5LKZrSZoN68t7gsJdO/view?usp=sharing) | [<img src="docs/images/demo-browser.png" width="280">](https://drive.google.com/file/d/1lPJGStD_YMWdF4a_k9ca_Kr-mah5yBnj/view?usp=sharing) | [<img src="docs/images/demo-academic.png" width="280">](https://drive.google.com/file/d/1FliAGRSMFBh41m5xZe2mNpSmLtu_T1yN/view?usp=sharing) |
+| *Stock analysis, market news* | *Web automation with Nova Act* | *Research papers via ArXiv & Wikipedia* |
 
 ## Key Technical Features
 
@@ -106,8 +125,6 @@ Native support for visual and document content:
 **6. Two-tier Memory System**
 
 Combines session-based conversation history (short-term) with namespaced user preferences and facts (long-term) stored in AgentCore Memory, enabling cross-session context retention with relevance-scored retrieval per user.
-
-![Demo](docs/images/home.gif)
 
 ## Implementation Details
 
@@ -203,7 +220,7 @@ Two-level caching via Strands hooks:
 **Visual Explanation:**
 - 🟧 **Orange**: Cache creation (new content cached)
 - 🟦 **Blue**: Cache read (reusing cached content)
-- Turn1 creates initial cache, Turn2+ reuses and extends cached context
+- Event1 creates initial cache, Event2+ reuses and extends cached context
 
 ### Turn-based Session Manager
 
@@ -450,7 +467,6 @@ sample-strands-agent-chatbot/
 ## Documentation
 
 - [DEPLOYMENT.md](DEPLOYMENT.md): Detailed deployment instructions
-- [Transaction Search Setup](docs/TRANSACTION_SEARCH.md): Enable CloudWatch Transaction Search for enhanced observability
 
 ## Support
 

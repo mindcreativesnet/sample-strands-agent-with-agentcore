@@ -6,6 +6,7 @@ import { NextRequest } from 'next/server'
 import { invokeAgentCoreRuntime } from '@/lib/agentcore-runtime-client'
 import { extractUserFromRequest, getSessionId } from '@/lib/auth-utils'
 import { createDefaultHookManager } from '@/lib/chat-hooks'
+import { getSystemPrompt, type PromptId } from '@/lib/system-prompts'
 
 // Check if running in local mode
 const IS_LOCAL = process.env.NEXT_PUBLIC_AGENTCORE_LOCAL === 'true'
@@ -117,72 +118,122 @@ export async function POST(request: NextRequest) {
 
     if (enabled_tools && Array.isArray(enabled_tools)) {
       enabledToolsList = enabled_tools
-    } else if (userId !== 'anonymous') {
+    } else {
+      // Load enabled tools for all users (including anonymous)
       if (IS_LOCAL) {
         const { getUserEnabledTools } = await import('@/lib/local-tool-store')
         enabledToolsList = getUserEnabledTools(userId)
-      } else {
+      } else if (userId !== 'anonymous') {
+        // DynamoDB only for authenticated users
         const { getUserEnabledTools } = await import('@/lib/dynamodb-client')
         enabledToolsList = await getUserEnabledTools(userId)
       }
     }
 
+    // Helper function to get current date in US Pacific timezone
+    function getCurrentDatePacific(): string {
+      try {
+        const now = new Date()
+
+        // Get individual date/time components for Pacific timezone
+        const year = now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles', year: 'numeric' })
+        const month = now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles', month: '2-digit' })
+        const day = now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles', day: '2-digit' })
+        const weekday = now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles', weekday: 'long' })
+        const hour = now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles', hour: '2-digit', hour12: false }).split(':')[0]
+
+        // Determine PST or PDT (rough estimation: March-October is PDT)
+        const monthNum = parseInt(month)
+        const tzAbbr = (monthNum >= 3 && monthNum <= 10) ? 'PDT' : 'PST'
+
+        // Format: "YYYY-MM-DD (Weekday) HH:00 TZ"
+        return `${year}-${month}-${day} (${weekday}) ${hour}:00 ${tzAbbr}`
+      } catch (error) {
+        // Fallback to UTC
+        const now = new Date()
+        const isoDate = now.toISOString().split('T')[0]
+        const weekday = now.toLocaleDateString('en-US', { weekday: 'long' })
+        const hour = now.getUTCHours().toString().padStart(2, '0')
+        return `${isoDate} (${weekday}) ${hour}:00 UTC`
+      }
+    }
+
     // Load model configuration from storage
     const defaultModelId = model_id || 'us.anthropic.claude-haiku-4-5-20251001-v1:0'
+    let selectedPromptId: PromptId = 'general'
+    let customPromptText: string | undefined
+
     let modelConfig = {
       model_id: defaultModelId,
       temperature: 0.7,
-      system_prompt: `You are an intelligent AI agent with dynamic tool capabilities. You can perform various tasks based on the combination of tools available to you.
-
-Key guidelines:
-- You can ONLY use tools that are explicitly provided to you in each conversation
-- Available tools may change throughout the conversation based on user preferences
-- When multiple tools are available, select and use the most appropriate combination in the optimal order to fulfill the user's request
-- Break down complex tasks into steps and use multiple tools sequentially or in parallel as needed
-- Always explain your reasoning when using tools
-- If you don't have the right tool for a task, clearly inform the user about the limitation
-
-Your goal is to be helpful, accurate, and efficient in completing user requests using the available tools.`,
-      caching_enabled: defaultModelId.toLowerCase().includes('claude') || defaultModelId.toLowerCase().includes('nova')
+      system_prompt: getSystemPrompt('general'),
+      caching_enabled: defaultModelId.toLowerCase().includes('claude')
     }
 
-    if (userId !== 'anonymous') {
-      if (IS_LOCAL) {
-        try {
-          const { getUserModelConfig } = await import('@/lib/local-tool-store')
-          const config = getUserModelConfig(userId)
-          if (config) {
-            modelConfig = { ...modelConfig, ...config }
-            // Auto-enable caching for Claude and Nova models
-            if (config.model_id) {
-              modelConfig.caching_enabled = config.model_id.toLowerCase().includes('claude') || config.model_id.toLowerCase().includes('nova')
-            }
+    // Load model configuration for all users (including anonymous in local mode)
+    if (IS_LOCAL) {
+      try {
+        const { getUserModelConfig } = await import('@/lib/local-tool-store')
+        const config = getUserModelConfig(userId)
+        console.log(`[BFF] Loaded model config for ${userId}:`, config)
+        if (config) {
+          // Update model and temperature
+          if (config.model_id) {
+            modelConfig.model_id = config.model_id
+            modelConfig.caching_enabled = config.model_id.toLowerCase().includes('claude')
+            console.log(`[BFF] Applied model_id: ${config.model_id}, caching: ${modelConfig.caching_enabled}`)
           }
-        } catch (error) {
-          // Use defaults
-        }
-      } else {
-        try {
-          const { getUserProfile } = await import('@/lib/dynamodb-client')
-          const profile = await getUserProfile(userId)
-          if (profile?.preferences) {
-            if (profile.preferences.defaultModel) {
-              modelConfig.model_id = profile.preferences.defaultModel
-              // Auto-enable caching for Claude and Nova models
-              modelConfig.caching_enabled = profile.preferences.defaultModel.toLowerCase().includes('claude') || profile.preferences.defaultModel.toLowerCase().includes('nova')
-            }
-            if (profile.preferences.defaultTemperature !== undefined) {
-              modelConfig.temperature = profile.preferences.defaultTemperature
-            }
-            if (profile.preferences.systemPrompt) {
-              modelConfig.system_prompt = profile.preferences.systemPrompt
-            }
+          if (config.temperature !== undefined) {
+            modelConfig.temperature = config.temperature
           }
-        } catch (error) {
-          // Use defaults
+          // Load selectedPromptId
+          if (config.selectedPromptId) {
+            selectedPromptId = config.selectedPromptId as PromptId
+          }
+          if (config.customPromptText) {
+            customPromptText = config.customPromptText
+          }
+        } else {
+          console.log(`[BFF] No saved config found for ${userId}, using defaults`)
         }
+      } catch (error) {
+        console.error(`[BFF] Error loading config for ${userId}:`, error)
+        // Use defaults
+      }
+    } else if (userId !== 'anonymous') {
+      // DynamoDB only for authenticated users
+      try {
+        const { getUserProfile } = await import('@/lib/dynamodb-client')
+        const profile = await getUserProfile(userId)
+        if (profile?.preferences) {
+          if (profile.preferences.defaultModel) {
+            modelConfig.model_id = profile.preferences.defaultModel
+            modelConfig.caching_enabled = profile.preferences.defaultModel.toLowerCase().includes('claude')
+          }
+          if (profile.preferences.defaultTemperature !== undefined) {
+            modelConfig.temperature = profile.preferences.defaultTemperature
+          }
+          // Load selectedPromptId (new way)
+          if (profile.preferences.selectedPromptId) {
+            selectedPromptId = profile.preferences.selectedPromptId as PromptId
+          }
+          // Load customPromptText for custom prompts
+          if (profile.preferences.customPromptText) {
+            customPromptText = profile.preferences.customPromptText
+          }
+        }
+      } catch (error) {
+        // Use defaults
       }
     }
+
+    // Build system prompt based on selectedPromptId
+    const basePrompt = getSystemPrompt(selectedPromptId, customPromptText)
+
+    // Add current date to system prompt (at the end)
+    const currentDate = getCurrentDatePacific()
+    modelConfig.system_prompt = `${basePrompt}\n\nCurrent date and time: ${currentDate}`
+    console.log(`[BFF] Added current date to system prompt: ${currentDate}`)
 
     // Create a custom stream that:
     // 1. Immediately starts sending keep-alive (before AgentCore responds)
@@ -296,6 +347,7 @@ Your goal is to be helpful, accurate, and efficient in completing user requests 
               const updates: any = {
                 lastMessageAt: new Date().toISOString(),
                 messageCount: (currentSession.messageCount || 0) + 1,
+                // Do NOT pass metadata here - let updateSession preserve it via deep merge
               }
 
               if (userId === 'anonymous') {

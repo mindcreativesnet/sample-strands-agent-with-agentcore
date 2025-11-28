@@ -33,6 +33,18 @@ export interface Message {
     type: string
     size: number
   }>
+  latencyMetrics?: {
+    timeToFirstToken?: number  // ms from request to first response
+    endToEndLatency?: number   // ms from request to completion
+  }
+  tokenUsage?: {
+    inputTokens: number
+    outputTokens: number
+    totalTokens: number
+    cacheReadInputTokens?: number
+    cacheWriteInputTokens?: number
+  }
+  feedback?: 'up' | 'down' | null
 }
 
 export interface Tool {
@@ -43,6 +55,6 @@ export interface Tool {
   enabled: boolean
   import_path: string
   category: string
-  tool_type?: "built-in" | "custom" | "mcp" | "agent"
+  tool_type?: "local" | "builtin" | "gateway" | "runtime-a2a"
   connection_status?: "connected" | "disconnected" | "invalid" | "unknown"
 }
