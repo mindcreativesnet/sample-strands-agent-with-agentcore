@@ -347,7 +347,14 @@ export async function POST(request: NextRequest) {
               const updates: any = {
                 lastMessageAt: new Date().toISOString(),
                 messageCount: (currentSession.messageCount || 0) + 1,
-                // Do NOT pass metadata here - let updateSession preserve it via deep merge
+                // Save model and tool preferences for session restoration
+                metadata: {
+                  lastModel: modelConfig.model_id,
+                  lastTemperature: modelConfig.temperature,
+                  enabledTools: enabledToolsList,
+                  selectedPromptId: selectedPromptId,
+                  ...(customPromptText && { customPromptText }),
+                },
               }
 
               if (userId === 'anonymous') {

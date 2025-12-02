@@ -265,11 +265,20 @@ export async function GET(request: NextRequest) {
     }
 
     // Return messages with merged toolResults from blobs and metadata
+    // Also include session preferences (model, tools) for restoration
     return NextResponse.json({
       success: true,
       sessionId,
       messages: messages,
       count: messages.length,
+      // Include session preferences for restoration
+      sessionPreferences: sessionMetadata ? {
+        lastModel: sessionMetadata.lastModel,
+        lastTemperature: sessionMetadata.lastTemperature,
+        enabledTools: sessionMetadata.enabledTools,
+        selectedPromptId: sessionMetadata.selectedPromptId,
+        customPromptText: sessionMetadata.customPromptText,
+      } : null,
     })
   } catch (error) {
     console.error('[API] Error loading conversation history:', error)

@@ -312,7 +312,7 @@ export function ModelConfigDialog({ sessionId, open: externalOpen, onOpenChange:
                 <SelectTrigger>
                   <SelectValue placeholder="Select a model" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-[400px] overflow-y-auto">
                   {availableModels.map((model) => (
                     <SelectItem key={model.id} value={model.id}>
                       <div>

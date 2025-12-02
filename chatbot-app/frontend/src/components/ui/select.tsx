@@ -16,6 +16,7 @@ interface SelectTriggerProps {
 
 interface SelectContentProps {
   children: React.ReactNode
+  className?: string
 }
 
 interface SelectItemProps {
@@ -69,7 +70,7 @@ const SelectValue = ({ placeholder }: SelectValueProps) => {
   return <span>{context.value || placeholder}</span>
 }
 
-const SelectContent = ({ children }: SelectContentProps) => {
+const SelectContent = ({ children, className = "" }: SelectContentProps) => {
   const context = React.useContext(SelectContext)
   if (!context) throw new Error("SelectContent must be used within Select")
 
@@ -77,7 +78,7 @@ const SelectContent = ({ children }: SelectContentProps) => {
 
   return (
     <div className="absolute top-full left-0 z-50 w-full mt-1 bg-popover border border-border rounded-md shadow-lg text-popover-foreground">
-      <div className="p-1">
+      <div className={`p-1 ${className}`}>
         {children}
       </div>
     </div>
