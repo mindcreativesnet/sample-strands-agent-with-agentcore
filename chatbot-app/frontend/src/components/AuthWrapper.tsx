@@ -56,6 +56,7 @@ export default function AuthWrapper({
   return (
     <Authenticator
       variation="modal"
+      hideSignUp
       components={{
         Header() {
           return (

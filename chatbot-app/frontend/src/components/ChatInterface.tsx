@@ -15,7 +15,8 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { SidebarTrigger, SidebarInset, useSidebar } from "@/components/ui/sidebar"
-import { Upload, Send, FileText, ImageIcon, Square, Bot, Brain, Maximize2, Minimize2, Moon, Sun } from "lucide-react"
+import { Upload, Send, FileText, ImageIcon, Square, Bot, Brain, Maximize2, Minimize2, Moon, Sun, LogOut } from "lucide-react"
+import { signOut } from "aws-amplify/auth"
 import { ModelConfigDialog } from "@/components/ModelConfigDialog"
 import { apiGet } from "@/lib/api-client"
 import { useTheme } from "next-themes"
@@ -170,6 +171,14 @@ export function ChatInterface({ mode }: ChatInterfaceProps) {
 
   const regenerateSuggestions = useCallback(() => {
     setSuggestionKey(`suggestion-${Date.now()}`)
+  }, [])
+
+  const handleSignOut = useCallback(async () => {
+    try {
+      await signOut()
+    } catch (error) {
+      console.error('Failed to sign out', error)
+    }
   }, [])
 
   const handleNewChat = useCallback(async () => {
@@ -332,6 +341,18 @@ export function ChatInterface({ mode }: ChatInterfaceProps) {
 
               {/* Browser Live View Button */}
               <BrowserLiveViewButton sessionId={sessionId} browserSession={browserSession} />
+
+              {/* Sign out */}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleSignOut}
+                className="h-8 px-2"
+                title="Sign out"
+              >
+                <LogOut className="w-4 h-4" />
+              </Button>
             </div>
           </div>
         )}
