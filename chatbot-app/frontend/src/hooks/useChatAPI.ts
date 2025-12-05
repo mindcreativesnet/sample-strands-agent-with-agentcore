@@ -20,6 +20,15 @@ interface UseChatAPIProps {
   gatewayToolIds?: string[]  // Gateway tool IDs from frontend
 }
 
+// Session preferences returned when loading a session
+export interface SessionPreferences {
+  lastModel?: string
+  lastTemperature?: number
+  enabledTools?: string[]
+  selectedPromptId?: string
+  customPromptText?: string
+}
+
 interface UseChatAPIReturn {
   loadTools: () => Promise<void>
   toggleTool: (toolId: string) => Promise<void>
@@ -28,7 +37,7 @@ interface UseChatAPIReturn {
   cleanup: () => void
   sessionId: string | null
   isLoadingTools: boolean
-  loadSession: (sessionId: string) => Promise<void>
+  loadSession: (sessionId: string) => Promise<SessionPreferences | null>
 }
 
 export const useChatAPI = ({
@@ -389,7 +398,7 @@ export const useChatAPI = ({
   }, [handleStreamEvent, handleLegacyEvent, setUIState, setMessages, availableTools, gatewayToolIds, onSessionCreated])
   // sessionId removed from dependency array - using sessionIdRef.current instead
 
-  const loadSession = useCallback(async (newSessionId: string) => {
+  const loadSession = useCallback(async (newSessionId: string): Promise<SessionPreferences | null> => {
     try {
       logger.info(`Loading session: ${newSessionId}`)
 
@@ -414,6 +423,12 @@ export const useChatAPI = ({
 
       if (!data.success) {
         throw new Error(data.error || 'Failed to load conversation history')
+      }
+
+      // Extract session preferences for restoration
+      const sessionPreferences: SessionPreferences | null = data.sessionPreferences || null
+      if (sessionPreferences) {
+        logger.info(`Session preferences loaded: model=${sessionPreferences.lastModel}, tools=${sessionPreferences.enabledTools?.length || 0}`)
       }
 
       // Build tool maps for toolUse/toolResult matching
@@ -487,6 +502,9 @@ export const useChatAPI = ({
       sessionStorage.setItem('chat-session-id', newSessionId)
 
       logger.info(`Session loaded: ${newSessionId} with ${loadedMessages.length} messages`)
+
+      // Return session preferences for restoration by caller
+      return sessionPreferences
     } catch (error) {
       logger.error('Failed to load session:', error)
       throw error

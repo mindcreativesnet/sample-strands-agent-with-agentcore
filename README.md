@@ -108,21 +108,27 @@ Tools communicate via different protocols based on their characteristics:
 
 Status: 21 tools ✅ / 9 tools 🚧. See [Implementation Details](#multi-protocol-tool-architecture) for complete tool list.
 
-**3. Dynamic Tool Filtering**
+**3. Multi-Model Selection**
+
+Supports 20+ foundation models from multiple providers (Anthropic, Amazon, Google, Qwen, NVIDIA, Mistral).
+
+<img src="docs/images/model-selection.png" alt="Model Selection" width="800">
+
+**4. Dynamic Tool Filtering**
 
 Users can enable/disable specific tools via UI sidebar, and the agent dynamically filters tool definitions before each invocation, sending only selected tools to the model to reduce prompt token count and optimize costs.
 
-**4. Token Optimization via Prompt Caching**
+**5. Token Optimization via Prompt Caching**
 
 Implements hooks-based caching strategy with system prompt caching and dynamic conversation history caching (last 2 messages), using rotating cache points (max 4 total) to significantly reduce input token costs across repeated API calls.
 
-**5. Multimodal Input/Output**
+**6. Multimodal Input/Output**
 
 Native support for visual and document content:
 - **Input**: Images (PNG, JPEG, GIF, WebP), Documents (PDF, CSV, DOCX, etc.)
 - **Output**: Charts from AgentCore Code Interpreter, screenshots from AgentCore Browser
 
-**6. Two-tier Memory System**
+**7. Two-tier Memory System**
 
 Combines session-based conversation history (short-term) with namespaced user preferences and facts (long-term) stored in AgentCore Memory, enabling cross-session context retention with relevance-scored retrieval per user.
 

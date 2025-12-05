@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Bot, Brain, Clock, Zap, Coins, Copy, ThumbsUp, ThumbsDown, Check } from 'lucide-react'
+import { Bot, Clock, Zap, Coins, Copy, ThumbsUp, ThumbsDown, Check } from 'lucide-react'
 import { Message } from '@/types/chat'
 import { ReasoningState } from '@/types/events'
 import { Markdown } from '@/components/ui/Markdown'
@@ -196,39 +196,6 @@ export const AssistantTurn = React.memo<AssistantTurnProps>(({ messages, current
 
         {/* Turn Content */}
         <div className="flex-1 space-y-4 pt-1 min-w-0">
-          {/* Reasoning Step - Show when AI has reasoning text to display */}
-          {currentReasoning && currentReasoning.text && (
-            <div className="animate-fade-in">
-              <div className={`reasoning-step p-4 rounded-lg border-l-4 ${
-                currentReasoning.isActive
-                  ? 'bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-400'
-                  : 'bg-gradient-to-r from-gray-50 to-slate-50 border-gray-400'
-              }`}>
-                <div className="flex items-center gap-3 mb-2">
-                  <Brain className={`h-5 w-5 ${
-                    currentReasoning.isActive
-                      ? 'text-blue-500 animate-pulse'
-                      : 'text-gray-500'
-                  }`} />
-                  <span className={`text-sm font-semibold ${
-                    currentReasoning.isActive
-                      ? 'text-blue-700'
-                      : 'text-gray-700'
-                  }`}>
-                    {currentReasoning.isActive ? 'AI is thinking...' : 'AI Reasoning Process'}
-                  </span>
-                </div>
-                <p className={`text-sm italic leading-relaxed ${
-                  currentReasoning.isActive
-                    ? 'text-blue-600'
-                    : 'text-gray-600'
-                }`}>
-                  {currentReasoning.text}
-                </p>
-              </div>
-            </div>
-          )}
-
           {/* Render messages in chronological order */}
           {groupedContent.map((item) => (
             <div key={item.key} className="animate-fade-in">

@@ -3,10 +3,11 @@ import { Message, Tool, ToolExecution } from '@/types/chat'
 import { ReasoningState, ChatSessionState, ChatUIState, ToolProgressState } from '@/types/events'
 import { detectBackendUrl } from '@/utils/chat'
 import { useStreamEvents } from './useStreamEvents'
-import { useChatAPI } from './useChatAPI'
+import { useChatAPI, SessionPreferences } from './useChatAPI'
 import { getApiUrl } from '@/config/environment'
 import API_CONFIG from '@/config/api'
 import { fetchAuthSession } from 'aws-amplify/auth'
+import { apiPost } from '@/lib/api-client'
 
 
 interface UseChatProps {
@@ -153,7 +154,7 @@ export const useChat = (props?: UseChatProps): UseChatReturn => {
   }, [props]);
 
   // Initialize chat API hook
-  const { loadTools, toggleTool: apiToggleTool, newChat: apiNewChat, sendMessage: apiSendMessage, cleanup, sessionId, loadSession } = useChatAPI({
+  const { loadTools, toggleTool: apiToggleTool, newChat: apiNewChat, sendMessage: apiSendMessage, cleanup, sessionId, loadSession: apiLoadSession } = useChatAPI({
     backendUrl,
     setUIState,
     setMessages,
@@ -164,6 +165,64 @@ export const useChat = (props?: UseChatProps): UseChatReturn => {
     gatewayToolIds,
     onSessionCreated: handleSessionCreated
   })
+
+  // Default preferences when session has no saved preferences
+  const DEFAULT_PREFERENCES: SessionPreferences = {
+    lastModel: 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
+    lastTemperature: 0.7,
+    enabledTools: [], // All tools disabled by default
+    selectedPromptId: 'general',
+  }
+
+  // Wrapper for loadSession that restores session preferences (model, tools)
+  const loadSessionWithPreferences = useCallback(async (newSessionId: string) => {
+    const preferences = await apiLoadSession(newSessionId)
+
+    // Merge saved preferences with defaults (field-by-field fallback)
+    // This handles cases where old sessions have partial or missing preferences
+    const effectivePreferences: SessionPreferences = {
+      lastModel: preferences?.lastModel || DEFAULT_PREFERENCES.lastModel,
+      lastTemperature: preferences?.lastTemperature ?? DEFAULT_PREFERENCES.lastTemperature,
+      enabledTools: preferences?.enabledTools || DEFAULT_PREFERENCES.enabledTools,
+      selectedPromptId: preferences?.selectedPromptId || DEFAULT_PREFERENCES.selectedPromptId,
+      customPromptText: preferences?.customPromptText,
+    }
+    const isUsingDefaults = !preferences
+
+    console.log(`[useChat] ${isUsingDefaults ? 'Using default' : 'Restoring session'} preferences:`, effectivePreferences)
+
+    // 1. Restore tool states based on enabledTools from session
+    // If enabledTools is empty array or undefined, disable all tools
+    setAvailableTools(prevTools => prevTools.map(tool => {
+      const enabledTools = effectivePreferences.enabledTools || []
+      const shouldBeEnabled = enabledTools.includes(tool.id)
+      return { ...tool, enabled: shouldBeEnabled }
+    }))
+    console.log(`[useChat] Tool states updated: ${effectivePreferences.enabledTools?.length || 0} enabled`)
+
+    // 2. Restore model configuration by updating user preferences
+    try {
+      await apiPost('model/config/update', {
+        model_id: effectivePreferences.lastModel,
+        temperature: effectivePreferences.lastTemperature,
+      }, {
+        headers: newSessionId ? { 'X-Session-ID': newSessionId } : {},
+      })
+      console.log(`[useChat] Model config updated: ${effectivePreferences.lastModel}, temp=${effectivePreferences.lastTemperature}`)
+    } catch (error) {
+      console.warn('[useChat] Failed to update model config:', error)
+    }
+
+    // 3. Restore system prompt
+    try {
+      await apiPost(`model/prompts/${effectivePreferences.selectedPromptId || 'general'}/activate`, undefined, {
+        headers: newSessionId ? { 'X-Session-ID': newSessionId } : {},
+      })
+      console.log(`[useChat] Prompt activated: ${effectivePreferences.selectedPromptId || 'general'}`)
+    } catch (error) {
+      console.warn('[useChat] Failed to activate prompt:', error)
+    }
+  }, [apiLoadSession, setAvailableTools])
 
   // Function to clear stored progress events
   const clearProgressEvents = useCallback(async () => {
@@ -206,7 +265,7 @@ export const useChat = (props?: UseChatProps): UseChatReturn => {
     const lastSessionId = sessionStorage.getItem('chat-session-id')
 
     if (lastSessionId) {
-      loadSession(lastSessionId).catch(error => {
+      loadSessionWithPreferences(lastSessionId).catch(error => {
         // Load failed, clear sessionStorage
         sessionStorage.removeItem('chat-session-id')
         setMessages([])
@@ -496,7 +555,7 @@ export const useChat = (props?: UseChatProps): UseChatReturn => {
     toggleTool,
     refreshTools,
     sessionId,
-    loadSession,
+    loadSession: loadSessionWithPreferences,
     onGatewayToolsChange: handleGatewayToolsChange,
     browserSession: sessionState.browserSession
   }
