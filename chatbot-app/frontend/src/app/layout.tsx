@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
+import '@aws-amplify/ui-react/styles.css'
 import { ThemeProvider } from '@/components/ThemeProvider'
 import AuthWrapper from '@/components/AuthWrapper'
 

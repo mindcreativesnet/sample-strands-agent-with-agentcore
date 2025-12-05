@@ -40,7 +40,7 @@ export const ChatMessage = React.memo<ChatMessageProps>(({ message, sessionId })
                 ))}
               </div>
             )}
-            <div className="bg-blue-600 text-white rounded-2xl rounded-tr-md px-5 py-3.5 shadow-sm">
+            <div className="gradient-primary text-white rounded-2xl rounded-tr-md px-5 py-3.5 shadow-md border border-white/10">
               <p className="text-[13px] leading-relaxed font-[450] tracking-[-0.005em]">{message.text}</p>
             </div>
           </div>
@@ -85,8 +85,8 @@ export const ChatMessage = React.memo<ChatMessageProps>(({ message, sessionId })
           {/* Tool Executions Section - Only show if not a separate tool message */}
           {message.toolExecutions && message.toolExecutions.length > 0 && !message.isToolMessage && (
             <div className="mb-4">
-              <div className="text-xs font-medium text-slate-600 mb-2 flex items-center gap-2">
-                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+              <div className="text-xs font-medium text-slate-600 dark:text-slate-300 mb-2 flex items-center gap-2">
+                <div className="w-2 h-2 bg-primary rounded-full"></div>
                 Tools Used ({message.toolExecutions.length})
               </div>
               <ToolExecutionContainer toolExecutions={message.toolExecutions} compact={true} sessionId={sessionId} />
@@ -94,28 +94,30 @@ export const ChatMessage = React.memo<ChatMessageProps>(({ message, sessionId })
           )}
           
           <div className="w-full overflow-hidden">
-            <Markdown size="base" sessionId={sessionId}>{message.text}</Markdown>
-            
-            {/* Generated Images */}
-            {message.images && message.images.length > 0 && (
-              <div className="mt-4 space-y-3">
-                {message.images.map((image, idx) => (
-                  <div key={idx} className="relative group">
-                    <LazyImage
-                      src={`data:image/${image.format};base64,${image.data}`}
-                      alt={`Generated image ${idx + 1}`}
-                      className="max-w-full h-auto rounded-xl border border-slate-200 shadow-sm"
-                      style={{ maxHeight: '400px' }}
-                    />
-                    <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Badge variant="secondary" className="text-xs bg-black/70 text-white border-0">
-                        {image.format.toUpperCase()}
-                      </Badge>
+            <div className="rounded-2xl bg-card/80 text-foreground shadow-md border border-border/40 px-4 py-3">
+              <Markdown size="base" sessionId={sessionId}>{message.text}</Markdown>
+              
+              {/* Generated Images */}
+              {message.images && message.images.length > 0 && (
+                <div className="mt-4 space-y-3">
+                  {message.images.map((image, idx) => (
+                    <div key={idx} className="relative group">
+                      <LazyImage
+                        src={`data:image/${image.format};base64,${image.data}`}
+                        alt={`Generated image ${idx + 1}`}
+                        className="max-w-full h-auto rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm"
+                        style={{ maxHeight: '400px' }}
+                      />
+                      <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Badge variant="secondary" className="text-xs bg-black/70 text-white border-0">
+                          {image.format.toUpperCase()}
+                        </Badge>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
 
           </div>
         </div>
