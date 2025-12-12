@@ -18,6 +18,54 @@ const IS_LOCAL = process.env.NEXT_PUBLIC_AGENTCORE_LOCAL === 'true'
 
 export const runtime = 'nodejs'
 
+/**
+ * Check if tool registry needs sync by comparing tool counts
+ * Returns true if any category has different tool counts
+ */
+function checkIfRegistryNeedsSync(fallback: any, registry: any): boolean {
+  try {
+    // Helper to count tools in nested structures
+    const countNestedTools = (items: any[] = []) => {
+      return items.reduce((sum, item) => {
+        if (item.tools && Array.isArray(item.tools)) {
+          return sum + item.tools.length
+        }
+        return sum + 1 // Count the item itself if no nested tools
+      }, 0)
+    }
+
+    // Compare each category
+    const checks = [
+      // Local tools
+      (fallback.local_tools?.length || 0) !== (registry.local_tools?.length || 0),
+      // Builtin tools
+      (fallback.builtin_tools?.length || 0) !== (registry.builtin_tools?.length || 0),
+      // Browser automation (nested tools)
+      countNestedTools(fallback.browser_automation) !== countNestedTools(registry.browser_automation),
+      // Gateway targets (nested tools)
+      countNestedTools(fallback.gateway_targets) !== countNestedTools(registry.gateway_targets),
+      // AgentCore Runtime A2A
+      (fallback.agentcore_runtime_a2a?.length || 0) !== (registry.agentcore_runtime_a2a?.length || 0),
+    ]
+
+    const needsSync = checks.some(check => check === true)
+
+    if (needsSync) {
+      console.log('[API] Tool count comparison:')
+      console.log(`  local_tools: ${fallback.local_tools?.length || 0} vs ${registry.local_tools?.length || 0}`)
+      console.log(`  builtin_tools: ${fallback.builtin_tools?.length || 0} vs ${registry.builtin_tools?.length || 0}`)
+      console.log(`  browser_automation (nested): ${countNestedTools(fallback.browser_automation)} vs ${countNestedTools(registry.browser_automation)}`)
+      console.log(`  gateway_targets (nested): ${countNestedTools(fallback.gateway_targets)} vs ${countNestedTools(registry.gateway_targets)}`)
+      console.log(`  agentcore_runtime_a2a: ${fallback.agentcore_runtime_a2a?.length || 0} vs ${registry.agentcore_runtime_a2a?.length || 0}`)
+    }
+
+    return needsSync
+  } catch (error) {
+    console.error('[API] Error checking registry sync status:', error)
+    return false // On error, don't sync to avoid loops
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     // Extract user from Cognito JWT token
@@ -30,8 +78,19 @@ export async function GET(request: NextRequest) {
       // Cloud: Load from DynamoDB TOOL_REGISTRY (auto-initializes if not exists)
       const registryFromDDB = await getToolRegistry(toolsConfigFallback)
       if (registryFromDDB) {
-        toolsConfig = registryFromDDB as typeof toolsConfigFallback
-        console.log('[API] Tool registry loaded from DynamoDB')
+        // Auto-sync detection: Compare tool counts to detect changes
+        const needsSync = checkIfRegistryNeedsSync(toolsConfigFallback, registryFromDDB)
+
+        if (needsSync) {
+          console.log('[API] Tool registry mismatch detected - auto-syncing from tools-config.json...')
+          const { initializeToolRegistry } = await import('@/lib/dynamodb-client')
+          await initializeToolRegistry(toolsConfigFallback)
+          toolsConfig = toolsConfigFallback
+          console.log('[API] Tool registry auto-synced successfully')
+        } else {
+          toolsConfig = registryFromDDB as typeof toolsConfigFallback
+          console.log('[API] Tool registry loaded from DynamoDB (no changes detected)')
+        }
       } else {
         console.log('[API] Tool registry not found in DynamoDB, using fallback JSON')
       }
@@ -71,10 +130,17 @@ export async function GET(request: NextRequest) {
         }
       }
     } else {
-      // Anonymous user - load from local file storage (works for both local and AWS)
-      const { getUserEnabledTools: getLocalUserEnabledTools } = await import('@/lib/local-tool-store')
-      enabledToolIds = getLocalUserEnabledTools(userId)
-      console.log(`[API] Loaded anonymous user from local file: ${enabledToolIds.length} enabled`)
+      // Anonymous user - load from local file (local) or DynamoDB (AWS)
+      if (IS_LOCAL) {
+        const { getUserEnabledTools: getLocalUserEnabledTools } = await import('@/lib/local-tool-store')
+        enabledToolIds = getLocalUserEnabledTools(userId)
+        console.log(`[API] Loaded anonymous user from local file: ${enabledToolIds.length} enabled`)
+      } else {
+        // AWS: Load from DynamoDB
+        const storedTools = await getDynamoUserEnabledTools(userId)
+        enabledToolIds = storedTools
+        console.log(`[API] Loaded anonymous user from DynamoDB: ${enabledToolIds.length} enabled`)
+      }
     }
 
     // Step 3: Map tools with user-specific enabled state
@@ -101,8 +167,10 @@ export async function GET(request: NextRequest) {
 
     // Browser automation tools (grouped within builtin tools)
     const browserAutomation = (toolsConfig.browser_automation || []).map((group: any) => {
-      // Check if any tool in the group is enabled
-      const anyToolEnabled = group.tools.some((tool: any) => enabledToolIds.includes(tool.id))
+      // Check if any tool in the group is enabled (only if group has tools)
+      const anyToolEnabled = group.tools && Array.isArray(group.tools)
+        ? group.tools.some((tool: any) => enabledToolIds.includes(tool.id))
+        : enabledToolIds.includes(group.id)
 
       return {
         id: group.id,
@@ -113,21 +181,25 @@ export async function GET(request: NextRequest) {
         type: 'builtin_tools',
         tool_type: 'builtin',
         enabled: anyToolEnabled,
-        isDynamic: true,
-        tools: group.tools.map((tool: any) => ({
-          id: tool.id,
-          name: tool.name,
-          description: tool.description,
-          enabled: enabledToolIds.includes(tool.id)
-        }))
+        isDynamic: group.isDynamic ?? true,
+        tools: group.tools && Array.isArray(group.tools)
+          ? group.tools.map((tool: any) => ({
+              id: tool.id,
+              name: tool.name,
+              description: tool.description,
+              enabled: enabledToolIds.includes(tool.id)
+            }))
+          : undefined
       }
     })
 
     // Gateway tools (grouped like Browser Automation)
     const gatewayTargets = toolsConfig.gateway_targets || []
     const gatewayTools = gatewayTargets.map((target: any) => {
-      // Check if any tool in the group is enabled
-      const anyToolEnabled = target.tools.some((tool: any) => enabledToolIds.includes(tool.id))
+      // Check if any tool in the group is enabled (only if target has tools)
+      const anyToolEnabled = target.tools && Array.isArray(target.tools)
+        ? target.tools.some((tool: any) => enabledToolIds.includes(tool.id))
+        : enabledToolIds.includes(target.id)
 
       return {
         id: target.id,
@@ -138,21 +210,23 @@ export async function GET(request: NextRequest) {
         type: 'gateway',
         tool_type: 'gateway',
         enabled: anyToolEnabled,
-        isDynamic: true,
-        tools: target.tools.map((tool: any) => ({
-          id: tool.id,
-          name: tool.name,
-          description: tool.description,
-          enabled: enabledToolIds.includes(tool.id)
-        }))
+        isDynamic: target.isDynamic ?? true,
+        tools: target.tools && Array.isArray(target.tools)
+          ? target.tools.map((tool: any) => ({
+              id: tool.id,
+              name: tool.name,
+              description: tool.description,
+              enabled: enabledToolIds.includes(tool.id)
+            }))
+          : undefined
       }
     })
 
     // Runtime A2A agents (grouped)
-    const runtimeA2AServers = toolsConfig.agentcore_runtime_mcp || []
+    const runtimeA2AServers = toolsConfig.agentcore_runtime_a2a || []
     const runtimeA2ATools = runtimeA2AServers.map((server: any) => {
-      // Check if any tool in the server is enabled
-      const anyToolEnabled = server.tools?.some((tool: any) => enabledToolIds.includes(tool.id)) || false
+      // For A2A agents, check if the agent itself is enabled (not nested tools)
+      const isEnabled = enabledToolIds.includes(server.id)
 
       return {
         id: server.id,
@@ -162,15 +236,9 @@ export async function GET(request: NextRequest) {
         icon: server.icon,
         type: 'runtime-a2a',
         tool_type: 'runtime-a2a',
-        enabled: anyToolEnabled,
-        isDynamic: true,
-        endpoint_arn: server.endpoint_arn,
-        tools: server.tools?.map((tool: any) => ({
-          id: tool.id,
-          name: tool.name,
-          description: tool.description,
-          enabled: enabledToolIds.includes(tool.id)
-        })) || []
+        enabled: isEnabled,
+        isDynamic: false,
+        runtime_arn: server.runtime_arn
       }
     })
 
@@ -214,8 +282,8 @@ export async function GET(request: NextRequest) {
       type: 'builtin_tools',
       tool_type: 'builtin',
       enabled: group.enabled ?? true,
-      isDynamic: true,
-      tools: group.tools
+      isDynamic: group.isDynamic ?? true,
+      tools: group.tools || undefined
     }))
 
     // Gateway tools (fallback - grouped)
@@ -229,12 +297,12 @@ export async function GET(request: NextRequest) {
       type: 'gateway',
       tool_type: 'gateway',
       enabled: target.enabled ?? false,
-      isDynamic: true,
-      tools: target.tools
+      isDynamic: target.isDynamic ?? true,
+      tools: target.tools || undefined
     }))
 
     // Runtime A2A agents (fallback - grouped)
-    const runtimeA2AServers = toolsConfigFallback.agentcore_runtime_mcp || []
+    const runtimeA2AServers = toolsConfigFallback.agentcore_runtime_a2a || []
     const runtimeA2ATools = runtimeA2AServers.map((server: any) => ({
       id: server.id,
       name: server.name,
@@ -244,9 +312,8 @@ export async function GET(request: NextRequest) {
       type: 'runtime-a2a',
       tool_type: 'runtime-a2a',
       enabled: server.enabled ?? false,
-      isDynamic: true,
-      endpoint_arn: server.endpoint_arn,
-      tools: server.tools || []
+      isDynamic: false,
+      runtime_arn: server.runtime_arn
     }))
 
     return NextResponse.json({

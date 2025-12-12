@@ -50,6 +50,9 @@ import builtin_tools
 # Import Gateway MCP client
 from agent.gateway_mcp_client import get_gateway_client_if_enabled
 
+# Import A2A tools module
+import a2a_tools
+
 logger = logging.getLogger(__name__)
 
 
@@ -98,6 +101,68 @@ class StopHook(HookProvider):
             tool_name = event.tool_use.get("name", "unknown")
             logger.info(f"🚫 Cancelling tool execution: {tool_name} (session stopped by user)")
             event.cancel_tool = "Session stopped by user"
+
+
+class ResearchApprovalHook(HookProvider):
+    """Hook to request user approval before executing research agent or browser-use agent"""
+
+    def __init__(self, app_name: str = "chatbot"):
+        self.app_name = app_name
+
+    def register_hooks(self, registry: HookRegistry, **kwargs: Any) -> None:
+        registry.add_callback(BeforeToolCallEvent, self.request_approval)
+
+    def request_approval(self, event: BeforeToolCallEvent) -> None:
+        """Request user approval before executing research_agent or browser_use_agent tool"""
+        tool_name = event.tool_use.get("name", "")
+
+        # Only interrupt for research_agent or browser_use_agent tools
+        if tool_name not in ["research_agent", "browser_use_agent"]:
+            return
+
+        # Extract tool input
+        tool_input = event.tool_use.get("input", {})
+
+        # Prepare approval details based on tool type
+        if tool_name == "research_agent":
+            # Research Agent: show plan
+            plan = tool_input.get("plan", "No plan provided")
+            logger.info(f"🔍 Requesting approval for research_agent with plan: {plan[:100]}...")
+
+            approval = event.interrupt(
+                f"{self.app_name}-research-approval",
+                reason={
+                    "tool_name": tool_name,
+                    "plan": plan,
+                    "plan_preview": plan[:200] + "..." if len(plan) > 200 else plan
+                }
+            )
+            action = "research"
+
+        elif tool_name == "browser_use_agent":
+            # Browser-Use Agent: show task and max_steps
+            task = tool_input.get("task", "No task provided")
+            max_steps = tool_input.get("max_steps", 15)
+            logger.info(f"🌐 Requesting approval for browser_use_agent with task: {task[:100]}...")
+
+            approval = event.interrupt(
+                f"{self.app_name}-browser-approval",
+                reason={
+                    "tool_name": tool_name,
+                    "task": task,
+                    "task_preview": task[:200] + "..." if len(task) > 200 else task,
+                    "max_steps": max_steps
+                }
+            )
+            action = "browser automation"
+
+        # Check user response
+        if approval and approval.lower() in ["y", "yes", "approve"]:
+            logger.info(f"✅ {action.capitalize()} approved by user, proceeding with execution")
+            return
+        else:
+            logger.info(f"❌ {action.capitalize()} rejected by user, cancelling tool execution")
+            event.cancel_tool = f"User declined to proceed with {action}"
 
 
 class ConversationCachingHook(HookProvider):
@@ -417,7 +482,7 @@ Your goal is to be helpful, accurate, and efficient in completing user requests 
     def get_filtered_tools(self) -> List:
         """
         Get tools filtered by enabled_tools list.
-        Includes both local tools and Gateway MCP client (Managed Integration).
+        Includes local tools, Gateway MCP client, and A2A agents.
         """
         # If no enabled_tools specified (None or empty), return NO tools
         if self.enabled_tools is None or len(self.enabled_tools) == 0:
@@ -427,6 +492,7 @@ Your goal is to be helpful, accurate, and efficient in completing user requests 
         # Filter local tools based on enabled_tools
         filtered_tools = []
         gateway_tool_ids = []
+        a2a_agent_ids = []
 
         for tool_id in self.enabled_tools:
             if tool_id in TOOL_REGISTRY:
@@ -435,11 +501,15 @@ Your goal is to be helpful, accurate, and efficient in completing user requests 
             elif tool_id.startswith("gateway_"):
                 # Gateway MCP tool - collect for filtering
                 gateway_tool_ids.append(tool_id)
+            elif tool_id.startswith("agentcore_"):
+                # A2A Agent tool - collect for creation
+                a2a_agent_ids.append(tool_id)
             else:
                 logger.warning(f"Tool '{tool_id}' not found in registry, skipping")
 
         logger.info(f"Local tools enabled: {len(filtered_tools)}")
         logger.info(f"Gateway tools enabled: {len(gateway_tool_ids)}")
+        logger.info(f"A2A agents enabled: {len(a2a_agent_ids)}")
 
         # Add Gateway MCP client if Gateway tools are enabled
         # Store as instance variable to keep session alive during Agent lifecycle
@@ -454,18 +524,48 @@ Your goal is to be helpful, accurate, and efficient in completing user requests 
             else:
                 logger.warning("⚠️  Gateway MCP client not available")
 
-        logger.info(f"Total enabled tools: {len(filtered_tools)} (local + gateway client)")
+        # Add A2A Agent tools
+        if a2a_agent_ids:
+            for agent_id in a2a_agent_ids:
+                try:
+                    # Create A2A tool based on agent_id
+                    a2a_tool = self._create_a2a_tool(agent_id)
+                    if a2a_tool:
+                        filtered_tools.append(a2a_tool)
+                        logger.info(f"✅ A2A Agent added: {agent_id}")
+                except Exception as e:
+                    logger.error(f"Failed to create A2A tool {agent_id}: {e}")
+
+        logger.info(f"Total enabled tools: {len(filtered_tools)} (local + gateway + a2a)")
         return filtered_tools
+
+    def _create_a2a_tool(self, agent_id: str):
+        """Create A2A agent tool from agent_id"""
+        # Delegate to a2a_tools module
+        return a2a_tools.create_a2a_tool(agent_id)
 
     def create_agent(self):
         """Create Strands agent with filtered tools and session management"""
         try:
+            from botocore.config import Config
+
             config = self.get_model_config()
+
+            # Configure retry for transient Bedrock errors (serviceUnavailableException)
+            retry_config = Config(
+                retries={
+                    'max_attempts': 10,
+                    'mode': 'adaptive'  # Adaptive retry with exponential backoff
+                },
+                connect_timeout=30,
+                read_timeout=120
+            )
 
             # Create model configuration
             model_config = {
                 "model_id": config["model_id"],
-                "temperature": config.get("temperature", 0.7)
+                "temperature": config.get("temperature", 0.7),
+                "boto_client_config": retry_config
             }
 
             # Add cache_prompt if caching is enabled (BedrockModel handles SystemContentBlock formatting)
@@ -473,6 +573,7 @@ Your goal is to be helpful, accurate, and efficient in completing user requests 
                 model_config["cache_prompt"] = "default"
                 logger.info("✅ System prompt caching enabled (cache_prompt=default)")
 
+            logger.info("✅ Bedrock retry config: max_attempts=10, mode=adaptive")
             model = BedrockModel(**model_config)
 
             # Get filtered tools based on user preferences
@@ -485,6 +586,11 @@ Your goal is to be helpful, accurate, and efficient in completing user requests 
             stop_hook = StopHook(self.session_manager)
             hooks.append(stop_hook)
             logger.info("✅ Stop hook enabled (BeforeToolCallEvent)")
+
+            # Add research approval hook (always enabled)
+            research_approval_hook = ResearchApprovalHook(app_name="chatbot")
+            hooks.append(research_approval_hook)
+            logger.info("✅ Research approval hook enabled (BeforeToolCallEvent)")
 
             # Add conversation caching hook if enabled
             if self.caching_enabled:
@@ -551,12 +657,20 @@ Your goal is to be helpful, accurate, and efficient in completing user requests 
             else:
                 logger.info(f"Prompt is string: {prompt[:100]}")
 
+            # Prepare invocation_state with model_id, user_id, session_id
+            invocation_state = {
+                "session_id": self.session_id,
+                "user_id": self.user_id,
+                "model_id": self.model_id
+            }
+
             # Use stream processor to handle Strands agent streaming
             async for event in self.stream_processor.process_stream(
                 self.agent,
                 prompt,  # Can be str or list[ContentBlock]
                 file_paths=None,
-                session_id=session_id or "default"
+                session_id=session_id or "default",
+                invocation_state=invocation_state
             ):
                 yield event
 

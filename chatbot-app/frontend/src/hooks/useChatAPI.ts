@@ -168,12 +168,8 @@ export const useChatAPI = ({
     try {
       // Update frontend state
       setAvailableTools(prev => prev.map(tool => {
-        // Direct tool toggle
-        if (tool.id === toolId) {
-          return { ...tool, enabled: !tool.enabled }
-        }
-
-        // Check if this is a grouped tool with nested tools
+        // Check if this is a grouped tool with nested tools FIRST
+        // (to handle case where parent id == nested id)
         if ((tool as any).isDynamic && (tool as any).tools) {
           const nestedTools = (tool as any).tools
           const nestedIndex = nestedTools.findIndex((t: any) => t.id === toolId)
@@ -191,6 +187,11 @@ export const useChatAPI = ({
               tools: updatedNestedTools
             }
           }
+        }
+
+        // Direct tool toggle (for non-grouped tools)
+        if (tool.id === toolId) {
+          return { ...tool, enabled: !tool.enabled }
         }
 
         return tool
@@ -346,11 +347,14 @@ export const useChatAPI = ({
             try {
               const eventData = JSON.parse(line.substring(6))
               
+              // Debug: log metadata events (always show in production for debugging)
+              if (eventData.type === 'metadata') {
+                logger.info('[useChatAPI] Received metadata event:', eventData)
+              }
+
               // Handle new simplified events
               if (eventData.type && [
-                'text', 'reasoning', 'response', 'tool_use', 'tool_result', 'tool_progress', 'complete', 'init', 'thinking', 'error',
-                'spending_analysis_start', 'spending_analysis_step', 'spending_analysis_result',
-                'spending_analysis_progress', 'spending_analysis_complete', 'spending_analysis_chart'
+                'text', 'reasoning', 'response', 'tool_use', 'tool_result', 'tool_progress', 'complete', 'init', 'thinking', 'error', 'interrupt', 'metadata'
               ].includes(eventData.type)) {
                 handleStreamEvent(eventData as StreamEvent)
               } else {

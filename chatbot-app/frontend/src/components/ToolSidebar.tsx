@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Settings, Wrench, Server, Brain, Plus, Globe } from 'lucide-react';
+import { Settings, Wrench, Brain, Plus, Globe } from 'lucide-react';
 import { Tool } from '@/types/chat';
 import { Button } from '@/components/ui/button';
 import {
@@ -38,7 +38,7 @@ export function ToolSidebar({
   onSessionListRefresh,
   onGatewayToolsChange,
 }: ToolSidebarProps) {
-  const { setOpenMobile } = useSidebar();
+  const { setOpenMobile, isMobile } = useSidebar();
 
   // Use custom hooks
   const { chatSessions, isLoadingSessions, deleteSession } = useChatSessions({
@@ -141,17 +141,6 @@ export function ToolSidebar({
                   onToggleCategory={toggleCategory}
                   areAllEnabled={areAllEnabled('gateway')}
                 />
-
-                {/* AgentCore Runtime A2A Agents */}
-                <ToolSection
-                  title="AgentCore Runtime A2A Agents"
-                  icon={Server}
-                  tools={groupedTools['runtime-a2a']}
-                  category="runtime-a2a"
-                  onToggleTool={onToggleTool}
-                  onToggleCategory={toggleCategory}
-                  areAllEnabled={areAllEnabled('runtime-a2a')}
-                />
               </div>
             )}
           </SidebarContent>
@@ -161,7 +150,13 @@ export function ToolSidebar({
       {/* Footer */}
       <SidebarFooter className="flex-shrink-0 border-t border-sidebar-border/50">
         <div className="text-xs text-sidebar-foreground/60 text-center">
-          Press <kbd className="px-1.5 py-0.5 bg-sidebar-accent rounded text-xs font-mono">⌘B</kbd> to toggle
+          {isMobile ? (
+            'Tap outside to close'
+          ) : (
+            <>
+              Press <kbd className="px-1.5 py-0.5 bg-sidebar-accent rounded text-xs font-mono">⌘B</kbd> to toggle
+            </>
+          )}
         </div>
       </SidebarFooter>
     </Sidebar>
